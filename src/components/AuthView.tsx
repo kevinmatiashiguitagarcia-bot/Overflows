@@ -108,13 +108,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     }
   };
 
-  // Quick autofill demo for easy testing
-  const handleAutofillDemo = (email: string, pass: string) => {
-    setIdentifier(email);
-    setPassword(pass);
-    setErrorMessage(null);
-  };
-
   return (
     <div className="max-w-xl mx-auto py-4 sm:py-8 px-2">
       {/* Return button */}
@@ -268,29 +261,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               <LogIn className="w-4 h-4" />
               <span>Iniciar Sesión</span>
             </button>
-
-            {/* Quick Demo Credentials for Fast Testing */}
-            <div className="pt-4 mt-4 border-t border-slate-100 text-center">
-              <span className="text-[11px] text-slate-400 font-medium block mb-2">
-                ¿Deseas probar una cuenta de muestra rápidamente?
-              </span>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAutofillDemo('h.ruiz@overflowsaltavista.org', '123456')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
-                >
-                  Don Hernando (San Pablo)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAutofillDemo('sandovaldiazmariana23@gmail.com', 'admin2026')}
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
-                >
-                  Mariana Sandoval (Morro Plan)
-                </button>
-              </div>
-            </div>
           </form>
         )}
 
