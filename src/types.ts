@@ -7,11 +7,12 @@ export interface UserAccount {
   name: string;
   email: string;
   phone: string;
-  profileType: ProfileType;
-  role: UserRole;
   barrioSector: string;
   createdAt: string;
+  dataTreatmentAccepted: boolean;
   avatarUrl?: string;
+  role?: UserRole;
+  profileType?: ProfileType;
 }
 
 export type RiskLevel = 'seguro' | 'alerta_amarilla' | 'alerta_naranja' | 'alerta_roja';
@@ -22,16 +23,17 @@ export interface CuencaData {
   sector: string;
   capacityPercentage: number;
   status: RiskLevel;
-  batteryPercentage: number;
+  siataStationName: string;
+  siataStationId: string;
+  rainIntensityMmH: number; // mm/h from SIATA
   flowRate: number; // m³/s
   speed: number; // m/s
-  sensorModel: string;
-  sensorId: string;
   trend: 'ascendente' | 'estable' | 'alza_rapida' | 'descendente';
   currentLevel: number; // meters
   maxThreshold: number; // meters
   margin: number; // cm
   lastReadingTime: string;
+  communityStatus: string;
   description: string;
   criticalPoints: string[];
   historyPoints: number[];
@@ -62,3 +64,4 @@ export interface CitizenReportRecord extends CitizenReportInput {
   createdAt: string;
   status: 'pendiente' | 'revisado' | 'atendido';
 }
+

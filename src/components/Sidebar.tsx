@@ -8,18 +8,18 @@ import {
   MessageSquareWarning,
   PhoneCall,
   UserCheck,
-  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
   UserPlus,
   LogIn,
-  Trash2
+  Settings,
+  User
 } from 'lucide-react';
 
 interface SidebarProps {
-  currentView: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil';
-  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil') => void;
+  currentView: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil' | 'configuracion';
+  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil' | 'configuracion') => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   isOpenMobile: boolean;
@@ -39,31 +39,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     {
       id: 'inicio' as const,
-      label: 'Monitoreo Hidrológico',
-      sublabel: 'Panel Comuna 70',
+      label: 'Monitoreo de Quebradas',
+      sublabel: 'Datos SIATA y Reportes',
       icon: Activity,
-      badge: '14 Sensores'
+      badge: 'SIATA'
     },
     {
       id: 'mapa' as const,
       label: 'Mapa de Riesgo en Vivo',
-      sublabel: 'Lectura Satelital SIATA',
+      sublabel: 'Radares y Cuencas Altavista',
       icon: MapPin,
-      badge: 'Alerta Activa',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+      badge: 'En Vivo',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
     },
     {
       id: 'emergencias' as const,
-      label: 'Emergencias & Reporte',
-      sublabel: 'DAGRD & Bomberos 119',
+      label: 'Emergencias y Reportes',
+      sublabel: 'Avisos Ciudadanos & 123',
       icon: MessageSquareWarning
-    },
-    {
-      id: currentUser ? ('perfil' as const) : ('auth' as const),
-      label: currentUser ? 'Mi Cuenta Comunal' : 'Ingreso & Registro',
-      sublabel: currentUser ? currentUser.role : 'Crear o Iniciar Sesión',
-      icon: currentUser ? UserCheck : LogIn,
-      badge: currentUser ? 'Activo' : undefined
     }
   ];
 
@@ -93,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onNavigate('inicio');
                 onCloseMobile();
               }}
-              className="flex items-center gap-3 text-left focus:outline-hidden"
+              className="flex items-center gap-3 text-left focus:outline-hidden cursor-pointer"
             >
               <Logo
                 size={collapsed ? 'sm' : 'md'}
@@ -105,14 +98,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={onToggleCollapse}
-            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             title={collapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Live Network Pill */}
+        {/* Live Network Pill - Pure SIATA & Community */}
         {!collapsed && (
           <div className="mx-4 mt-4 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
@@ -120,10 +113,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-semibold text-slate-200">Red SIATA En Línea</span>
+              <span className="font-semibold text-slate-200">Red Hidrológica SIATA</span>
             </div>
             <span className="px-2 py-0.5 rounded-md bg-emerald-950 text-emerald-300 font-mono text-[11px] border border-emerald-800/60">
-              14/14 Activos
+              Activo
             </span>
           </div>
         )}
@@ -132,16 +125,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
           {!collapsed && (
             <div className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Navegación Fija
+              Navegación Principal
             </div>
           )}
 
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              currentView === item.id ||
-              (item.id === 'perfil' && currentView === 'perfil') ||
-              (item.id === 'auth' && currentView === 'auth');
+            const isActive = currentView === item.id;
 
             return (
               <button
@@ -150,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onNavigate(item.id);
                   onCloseMobile();
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all group relative ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all group relative cursor-pointer ${
                   isActive
                     ? 'bg-[#8B0000] text-white shadow-md font-semibold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-900'
@@ -161,7 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`p-1.5 rounded-lg shrink-0 transition-colors ${
                     isActive
                       ? 'bg-white/15 text-white'
-                      : 'bg-slate-800/80 text-slate-400 group-hover:text-cyan-400 group-hover:bg-slate-800'
+                      : 'bg-slate-800/80 text-slate-400 group-hover:text-amber-400 group-hover:bg-slate-800'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -198,6 +188,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             );
           })}
+
+          {/* Additional Account Navigation Options */}
+          {currentUser && (
+            <div className="pt-3 mt-3 border-t border-slate-800/80">
+              {!collapsed && (
+                <div className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Mi Cuenta
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  onNavigate('perfil');
+                  onCloseMobile();
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all group cursor-pointer ${
+                  currentView === 'perfil'
+                    ? 'bg-slate-800 text-white font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                }`}
+                title={collapsed ? 'Ver Perfil' : undefined}
+              >
+                <div className="p-1.5 rounded-lg shrink-0 bg-slate-800/80 text-slate-400 group-hover:text-white">
+                  <User className="w-4 h-4" />
+                </div>
+                {!collapsed && (
+                  <span className="text-xs font-semibold">Ver Perfil</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  onNavigate('configuracion');
+                  onCloseMobile();
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all group cursor-pointer ${
+                  currentView === 'configuracion'
+                    ? 'bg-slate-800 text-white font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                }`}
+                title={collapsed ? 'Configuración' : undefined}
+              >
+                <div className="p-1.5 rounded-lg shrink-0 bg-slate-800/80 text-slate-400 group-hover:text-white">
+                  <Settings className="w-4 h-4" />
+                </div>
+                {!collapsed && (
+                  <span className="text-xs font-semibold">Configuración</span>
+                )}
+              </button>
+            </div>
+          )}
         </nav>
 
         {/* Quick Emergency Actions Box */}
@@ -205,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-3 mx-3 mb-3 rounded-xl bg-red-950/40 border border-red-900/50 space-y-2">
             <div className="flex items-center gap-2 text-red-300 font-bold text-xs">
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>Líneas Rápidas Comuna 70</span>
+              <span>Emergencias Medellín</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <a
@@ -226,16 +267,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           <div className="p-2 flex flex-col items-center gap-2 mb-2">
             <a
-              href="tel:119"
+              href="tel:123"
               className="w-10 h-10 rounded-xl bg-red-800 hover:bg-red-700 text-white flex items-center justify-center shadow-xs"
-              title="Llamar Bomberos 119"
+              title="Llamar Línea 123"
             >
               <PhoneCall className="w-4 h-4" />
             </a>
           </div>
         )}
 
-        {/* User Account / Footer in Sidebar */}
+        {/* User Account Footer in Sidebar */}
         <div className="p-3 border-t border-slate-800/80 shrink-0">
           {currentUser ? (
             <div className="flex items-center justify-between">
@@ -244,12 +285,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onNavigate('perfil');
                   onCloseMobile();
                 }}
-                className={`flex items-center gap-2.5 overflow-hidden text-left hover:opacity-90 ${
+                className={`flex items-center gap-2.5 overflow-hidden text-left hover:opacity-90 cursor-pointer ${
                   collapsed ? 'justify-center w-full' : ''
                 }`}
-                title="Ver perfil y opciones de cuenta"
+                title="Ver perfil"
               >
-                <div className="w-9 h-9 rounded-full bg-linear-to-br from-red-600 to-amber-600 text-white flex items-center justify-center font-bold text-sm shrink-0 border border-red-400/30">
+                <div className="w-9 h-9 rounded-xl bg-[#8B0000] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-red-400/30">
                   {currentUser.name.charAt(0)}
                 </div>
                 {!collapsed && (
@@ -257,7 +298,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <p className="text-xs font-bold text-white truncate">
                       {currentUser.name}
                     </p>
-                    <p className="text-[11px] text-slate-400 truncate capitalize">
+                    <p className="text-[10px] text-slate-400 truncate">
                       {currentUser.barrioSector}
                     </p>
                   </div>
@@ -271,7 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onNavigate('auth');
                   onCloseMobile();
                 }}
-                className={`w-full py-2 px-3 rounded-lg bg-red-900/40 hover:bg-red-900/60 border border-red-800/50 text-red-200 text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
+                className={`w-full py-2 px-3 rounded-xl bg-red-900/40 hover:bg-red-900/60 border border-red-800/50 text-red-200 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                   collapsed ? 'p-2' : ''
                 }`}
                 title="Crear cuenta o iniciar sesión"

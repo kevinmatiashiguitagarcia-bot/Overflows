@@ -127,29 +127,36 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Telemetry Sensor Specs */}
+          {/* SIATA Station & Community Specs */}
           <div className="p-4 rounded-2xl bg-slate-900 text-slate-200 text-xs font-mono space-y-2">
             <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-800 font-sans">
               <span className="font-bold text-white flex items-center gap-1.5">
-                <Radio className="w-4 h-4 text-cyan-400" />
-                <span>Estación Telemétrica SIATA</span>
+                <Radio className="w-4 h-4 text-emerald-400" />
+                <span>Estación Oficial SIATA</span>
               </span>
-              <span>{cuenca.sensorId}</span>
+              <span className="text-emerald-400 font-mono font-bold">{cuenca.siataStationId}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <div>
-                <span className="text-slate-400">Modelo:</span> {cuenca.sensorModel}
+                <span className="text-slate-400 font-sans">Nombre estación:</span>{' '}
+                <span className="text-white font-sans font-medium">{cuenca.siataStationName}</span>
               </div>
               <div>
-                <span className="text-slate-400">Batería:</span> {cuenca.batteryPercentage}%
+                <span className="text-slate-400 font-sans">Lluvia SIATA:</span>{' '}
+                <span className="text-amber-400 font-bold">{cuenca.rainIntensityMmH} mm/h</span>
               </div>
               <div>
-                <span className="text-slate-400">Cota Máx:</span> {cuenca.maxThreshold} m
+                <span className="text-slate-400 font-sans">Cota Máxima:</span> {cuenca.maxThreshold} m
               </div>
               <div>
-                <span className="text-slate-400">Margen Seguridad:</span> {cuenca.margin} cm
+                <span className="text-slate-400 font-sans">Margen Creciente:</span> {cuenca.margin} cm
               </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 font-sans text-[11px] text-slate-300">
+              <span className="text-slate-400 font-medium">Estado según reportes ciudadanos:</span>{' '}
+              <strong className="text-emerald-300">{cuenca.communityStatus}</strong>
             </div>
           </div>
         </div>

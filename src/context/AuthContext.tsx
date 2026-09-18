@@ -1,20 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserAccount, ProfileType, UserRole } from '../types';
+import { UserAccount } from '../types';
 
 interface RegisterPayload {
   name: string;
   email: string;
   phone: string;
   password: string;
-  profileType: ProfileType;
-  role?: UserRole;
   barrioSector: string;
+  dataTreatmentAccepted: boolean;
 }
 
 interface AuthContextType {
   currentUser: UserAccount | null;
   usersRegistry: UserAccount[];
-  login: (identifier: string, password: string, profileType?: ProfileType) => { success: boolean; error?: string };
+  login: (identifier: string, password: string) => { success: boolean; error?: string };
   register: (payload: RegisterPayload) => { success: boolean; error?: string };
   logout: () => void;
   deleteAccount: (userId: string) => { success: boolean; message: string };
@@ -22,8 +21,8 @@ interface AuthContextType {
   isGuest: boolean;
 }
 
-const STORAGE_USERS_KEY = 'overflows_altavista_users_v2';
-const STORAGE_CURRENT_USER_KEY = 'overflows_altavista_current_user_v2';
+const STORAGE_USERS_KEY = 'overflows_altavista_users_v3';
+const STORAGE_CURRENT_USER_KEY = 'overflows_altavista_current_user_v3';
 
 // Seed initial users for convenience and demonstration
 const DEFAULT_USERS: (UserAccount & { passwordHash: string })[] = [
@@ -32,10 +31,9 @@ const DEFAULT_USERS: (UserAccount & { passwordHash: string })[] = [
     name: 'Don Hernando Ruiz',
     email: 'h.ruiz@overflowsaltavista.org',
     phone: '3124567890',
-    profileType: 'comunidad',
-    role: 'vigia',
     barrioSector: 'Sector San Pablo',
     createdAt: '2026-08-15T08:00:00Z',
+    dataTreatmentAccepted: true,
     passwordHash: '123456'
   },
   {
@@ -43,10 +41,9 @@ const DEFAULT_USERS: (UserAccount & { passwordHash: string })[] = [
     name: 'Mariana Sandoval Díaz',
     email: 'sandovaldiazmariana23@gmail.com',
     phone: '3002407070',
-    profileType: 'administrativo',
-    role: 'administrador',
     barrioSector: 'Sector Morro Plan',
     createdAt: '2026-09-01T10:00:00Z',
+    dataTreatmentAccepted: true,
     passwordHash: 'admin2026'
   }
 ];
@@ -123,8 +120,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!payload.password || payload.password.length < 6) {
       return { success: false, error: 'La contraseña debe tener al menos 6 caracteres.' };
     }
+    if (!payload.dataTreatmentAccepted) {
+      return {
+        success: false,
+        error: 'Debes autorizar el tratamiento de datos personales conforme a la política y normativa digital vigente para registrarte.'
+      };
+    }
 
-    // Check if account already exists by Email or Phone!
+    // Check if account already exists by Email or Phone
     const existingByEmail = usersRegistry.find(
       (u) => u.email.toLowerCase() === trimmedEmail
     );
@@ -150,15 +153,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: payload.name.trim(),
       email: trimmedEmail,
       phone: cleanPhone,
-      profileType: payload.profileType,
-      role: payload.role || (payload.profileType === 'administrativo' ? 'administrador' : 'habitante'),
       barrioSector: payload.barrioSector || 'Sector Morro Plan',
       createdAt: new Date().toISOString(),
+      dataTreatmentAccepted: true,
       passwordHash: payload.password
     };
 
     setUsersRegistry((prev) => [...prev, newUser]);
-    // Log in newly created user
     const { passwordHash, ...safeUser } = newUser;
     setCurrentUser(safeUser);
     setIsGuest(false);
@@ -168,8 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (
     identifier: string,
-    password: string,
-    profileType?: ProfileType
+    password: string
   ): { success: boolean; error?: string } => {
     const rawTrimmed = identifier.trim();
     const cleanIdPhone = normalizePhone(rawTrimmed);
@@ -179,7 +179,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isLikelyEmail) {
         return u.email.toLowerCase() === rawTrimmed.toLowerCase();
       }
-      // Check phone match or exact email if someone typed without @
       const uPhone = normalizePhone(u.phone);
       return (
         (cleanIdPhone.length >= 7 && uPhone === cleanIdPhone) ||
@@ -191,14 +190,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         success: false,
         error: 'No se encontró ninguna cuenta asociada a este correo o número telefónico. Por favor verifica tus datos o crea una cuenta.'
-      };
-    }
-
-    // Verify profile type if provided
-    if (profileType && matchedUser.profileType !== profileType) {
-      return {
-        success: false,
-        error: `La cuenta existe pero pertenece al perfil "${matchedUser.profileType.toUpperCase()}". Por favor selecciona la pestaña correspondiente.`
       };
     }
 
@@ -236,7 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: true,
-      message: `La cuenta de ${userToDelete.name} ha sido eliminada permanentemente del sistema.`
+      message: `La cuenta de ${userToDelete.name} ha sido eliminada permanentemente del sistema con supresión de datos.`
     };
   };
 
@@ -270,3 +261,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

@@ -220,7 +220,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             }`}
           >
             <Radio className="w-3.5 h-3.5 text-amber-800 animate-pulse" />
-            <span>Sensores SIATA ({currentMap.sensors.length})</span>
+            <span>Estaciones SIATA ({currentMap.sensors.length})</span>
           </button>
 
           <a
@@ -1267,8 +1267,8 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                     <span className="font-mono">{selectedSensor.elevation} msnm</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Batería Solar:</span>
-                    <span className="font-mono text-emerald-400">{selectedSensor.battery}%</span>
+                    <span className="text-slate-400">Red Hidrológica:</span>
+                    <span className="font-mono text-emerald-400">SIATA Oficial</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Tendencia:</span>
