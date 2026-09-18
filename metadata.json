@@ -1,0 +1,8 @@
+{
+  "name": "Overflows Altavista",
+  "description": "Plataforma comunitaria de alerta temprana hidrológica y monitoreo de cuencas en tiempo real para la Comuna 70 de Medellín.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
