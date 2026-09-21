@@ -25,7 +25,7 @@ interface AuthViewProps {
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
-  const { currentUser, login, register, continueAsGuest } = useAuth();
+  const { currentUser, login, register } = useAuth();
 
   // Mode: 'login' | 'register'
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -110,23 +110,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
 
   return (
     <div className="max-w-xl mx-auto py-4 sm:py-8 px-2">
-      {/* Return button */}
-      <div className="mb-6 flex items-center justify-between">
-        <button
-          onClick={() => {
-            continueAsGuest();
-            onSuccessRedirect();
-          }}
-          className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Volver al Monitoreo</span>
-        </button>
+      {/* Return button (only visible if already authenticated) */}
+      {currentUser && (
+        <div className="mb-6 flex items-center justify-between">
+          <button
+            onClick={onSuccessRedirect}
+            className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Volver al Monitoreo</span>
+          </button>
 
-        <span className="text-xs text-slate-500 font-medium">
-          Comuna 70 · Altavista
-        </span>
-      </div>
+          <span className="text-xs text-slate-500 font-medium">
+            Comuna 70 · Altavista
+          </span>
+        </div>
+      )}
 
       {/* Main Auth Container */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm">
@@ -209,7 +208,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="ejemplo@correo.com o 3001234567"
+                  placeholder="Correo electrónico o número de celular"
                   required
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-hidden"
                 />
@@ -276,7 +275,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ej: Carlos Gómez"
+                  placeholder="Nombre y apellidos"
                   required
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-hidden"
                 />
@@ -294,7 +293,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                     type="email"
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
-                    placeholder="tucorreo@ejemplo.com"
+                    placeholder="Correo electrónico"
                     required
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-hidden"
                   />
@@ -311,7 +310,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                     type="tel"
                     value={registerPhone}
                     onChange={(e) => setRegisterPhone(e.target.value)}
-                    placeholder="300 123 4567"
+                    placeholder="Número de celular"
                     required
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-hidden font-mono"
                   />

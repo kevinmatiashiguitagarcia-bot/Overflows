@@ -192,40 +192,8 @@ export const CUENCAS_LIST: CuencaData[] = [
   }
 ];
 
-export const INITIAL_VIGIA_REPORTS: VigiaReport[] = [
-  {
-    id: 'rep-01',
-    authorName: 'Hernando Ruiz',
-    isVerified: true,
-    timestamp: '2026-09-07T11:12:00',
-    timeAgo: 'Hace 18 min',
-    content: 'Acabamos de despejar ramas acumuladas en el estribo del puente peatonal sobre La Picacha. El flujo corre sin taponamiento por ahora, pero el agua baja con bastante lodo.',
-    location: 'Puente Las Brisas · Vereda Aguas Frías / El Corazón',
-    imageAttached: true,
-    imageUrl: '/quebrada_debris_channel.jpg'
-  },
-  {
-    id: 'rep-02',
-    authorName: 'Mariana Sandoval',
-    isVerified: true,
-    timestamp: '2026-09-07T10:48:00',
-    timeAgo: 'Hace 42 min',
-    content: 'Observé el caudal en Quebrada Buenavista: el agua subió bastante cerca al sector de las fábricas. Tomé foto para que los vecinos estén atentos por si sigue lloviendo.',
-    location: 'Vía El Morro km 2.5',
-    imageAttached: true,
-    imageUrl: '/quebrada_river_level.jpg',
-    protocolPhase: 'Precaución'
-  },
-  {
-    id: 'rep-03',
-    authorName: 'Luz Marina Zapata',
-    isVerified: true,
-    timestamp: '2026-09-07T10:15:00',
-    timeAgo: 'Hace 1h 15 min',
-    content: 'En el sector Morro Plan la lluvia ya disminuyó a llovizna suave. El cauce de Altavista mantiene velocidad constante sin desbordes por el momento.',
-    location: 'Sector Morro Plan · Aguas Frías'
-  }
-];
+// Real community reports submitted by citizens are stored in localStorage
+export const INITIAL_VIGIA_REPORTS: VigiaReport[] = [];
 
 export const SECTORS_LIST = [
   'Vereda La Esperanza / El Chispero',

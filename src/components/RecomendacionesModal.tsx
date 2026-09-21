@@ -107,9 +107,9 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
           <div className="p-4 rounded-2xl bg-red-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-center sm:text-left">
               <div className="text-xs font-bold text-red-300 uppercase tracking-wide">
-                Línea Directa Bomberos Medellín
+                Línea Directa de Auxilio y Rescate
               </div>
-              <div className="text-xl font-black font-mono">119 · Emergencias 123</div>
+              <div className="text-xl font-black font-mono">Bomberos Medellín · 119</div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -118,13 +118,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
                 className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
               >
                 <PhoneCall className="w-3.5 h-3.5" />
-                <span>Marcar 119</span>
-              </a>
-              <a
-                href="tel:123"
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
-              >
-                Marcar 123
+                <span>Marcar 119 Bomberos</span>
               </a>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserAccount } from '../types';
+import { UserAccount, UserRole } from '../types';
 
 interface RegisterPayload {
   name: string;
@@ -8,6 +8,7 @@ interface RegisterPayload {
   password: string;
   barrioSector: string;
   dataTreatmentAccepted: boolean;
+  role?: UserRole;
 }
 
 interface AuthContextType {
@@ -16,9 +17,13 @@ interface AuthContextType {
   login: (identifier: string, password: string) => { success: boolean; error?: string };
   register: (payload: RegisterPayload) => { success: boolean; error?: string };
   logout: () => void;
-  deleteAccount: (userId: string) => { success: boolean; message: string };
-  continueAsGuest: () => void;
-  isGuest: boolean;
+  verifyCurrentUserPassword: (password: string) => boolean;
+  deleteAccount: (userId: string, passwordConfirm?: string) => { success: boolean; message: string; error?: string };
+  updateUserContact: (
+    userId: string,
+    updates: { email?: string; phone?: string }
+  ) => { success: boolean; message: string; error?: string };
+  toggleUserRole: (userId: string) => void;
 }
 
 const STORAGE_USERS_KEY = 'overflows_altavista_users_v3';
@@ -34,7 +39,8 @@ const DEFAULT_USERS: (UserAccount & { passwordHash: string })[] = [
     barrioSector: 'Sector San Pablo',
     createdAt: '2026-08-15T08:00:00Z',
     dataTreatmentAccepted: true,
-    passwordHash: '123456'
+    passwordHash: '123456',
+    role: 'habitante'
   },
   {
     id: 'user-002',
@@ -44,7 +50,8 @@ const DEFAULT_USERS: (UserAccount & { passwordHash: string })[] = [
     barrioSector: 'Sector Morro Plan',
     createdAt: '2026-09-01T10:00:00Z',
     dataTreatmentAccepted: true,
-    passwordHash: 'admin2026'
+    passwordHash: 'admin2026',
+    role: 'administrador'
   }
 ];
 
@@ -77,8 +84,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     return null;
   });
-
-  const [isGuest, setIsGuest] = useState<boolean>(false);
 
   // Sync users to localStorage
   useEffect(() => {
@@ -162,7 +167,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsersRegistry((prev) => [...prev, newUser]);
     const { passwordHash, ...safeUser } = newUser;
     setCurrentUser(safeUser);
-    setIsGuest(false);
 
     return { success: true };
   };
@@ -203,26 +207,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { passwordHash, ...safeUser } = matchedUser;
     setCurrentUser(safeUser);
-    setIsGuest(false);
     return { success: true };
   };
 
   const logout = () => {
     setCurrentUser(null);
-    setIsGuest(false);
   };
 
-  const deleteAccount = (userId: string): { success: boolean; message: string } => {
+  const verifyCurrentUserPassword = (password: string): boolean => {
+    if (!currentUser) return false;
+    const user = usersRegistry.find((u) => u.id === currentUser.id);
+    if (!user || !user.passwordHash) return false;
+    return user.passwordHash === password;
+  };
+
+  const deleteAccount = (userId: string, passwordConfirm?: string): { success: boolean; message: string; error?: string } => {
     const userToDelete = usersRegistry.find((u) => u.id === userId);
     if (!userToDelete) {
-      return { success: false, message: 'La cuenta no fue encontrada en los registros.' };
+      return { success: false, message: 'La cuenta no fue encontrada en los registros.', error: 'Usuario no encontrado' };
+    }
+
+    if (passwordConfirm && userToDelete.passwordHash && userToDelete.passwordHash !== passwordConfirm) {
+      return { success: false, message: 'La contraseña no coincide.', error: 'Contraseña incorrecta' };
     }
 
     setUsersRegistry((prev) => prev.filter((u) => u.id !== userId));
 
     if (currentUser?.id === userId) {
       setCurrentUser(null);
-      setIsGuest(false);
     }
 
     return {
@@ -231,9 +243,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const continueAsGuest = () => {
-    setCurrentUser(null);
-    setIsGuest(true);
+  const updateUserContact = (
+    userId: string,
+    updates: { email?: string; phone?: string }
+  ): { success: boolean; message: string; error?: string } => {
+    const userToUpdate = usersRegistry.find((u) => u.id === userId);
+    if (!userToUpdate) {
+      return { success: false, message: 'Usuario no encontrado.', error: 'Usuario no encontrado' };
+    }
+
+    if (updates.email) {
+      const trimmedEmail = updates.email.trim().toLowerCase();
+      const duplicateEmail = usersRegistry.find(
+        (u) => u.id !== userId && u.email.toLowerCase() === trimmedEmail
+      );
+      if (duplicateEmail) {
+        return {
+          success: false,
+          message: `El correo "${trimmedEmail}" ya está registrado por otra cuenta en el sistema.`,
+          error: 'Correo duplicado'
+        };
+      }
+    }
+
+    if (updates.phone) {
+      const cleanPhone = normalizePhone(updates.phone);
+      const duplicatePhone = usersRegistry.find(
+        (u) => u.id !== userId && normalizePhone(u.phone) === cleanPhone
+      );
+      if (duplicatePhone) {
+        return {
+          success: false,
+          message: `El teléfono "${updates.phone}" ya está registrado por otra cuenta en el sistema.`,
+          error: 'Teléfono duplicado'
+        };
+      }
+    }
+
+    setUsersRegistry((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          return {
+            ...u,
+            ...(updates.email ? { email: updates.email.trim().toLowerCase() } : {}),
+            ...(updates.phone ? { phone: normalizePhone(updates.phone) } : {})
+          };
+        }
+        return u;
+      })
+    );
+
+    if (currentUser?.id === userId) {
+      setCurrentUser((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          ...(updates.email ? { email: updates.email.trim().toLowerCase() } : {}),
+          ...(updates.phone ? { phone: normalizePhone(updates.phone) } : {})
+        };
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Los datos de contacto han sido actualizados y verificados de manera segura en el sistema.'
+    };
+  };
+
+  const toggleUserRole = (userId: string) => {
+    setUsersRegistry((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          const newRole: UserRole = u.role === 'administrador' ? 'habitante' : 'administrador';
+          return { ...u, role: newRole };
+        }
+        return u;
+      })
+    );
+    if (currentUser?.id === userId) {
+      setCurrentUser((prev) => {
+        if (!prev) return null;
+        const newRole: UserRole = prev.role === 'administrador' ? 'habitante' : 'administrador';
+        return { ...prev, role: newRole };
+      });
+    }
   };
 
   return (
@@ -244,9 +337,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
+        verifyCurrentUserPassword,
         deleteAccount,
-        continueAsGuest,
-        isGuest
+        updateUserContact,
+        toggleUserRole
       }}
     >
       {children}

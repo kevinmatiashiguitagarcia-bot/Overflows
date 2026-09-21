@@ -6,8 +6,8 @@ import { CUENCAS_LIST } from '../data/cuencasData';
 import { UserDropdown } from './UserDropdown';
 
 interface TopHeaderProps {
-  currentView: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil' | 'configuracion';
-  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil' | 'configuracion') => void;
+  currentView: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion';
+  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion') => void;
   onSelectCuenca?: (cuencaId: string) => void;
   onOpenSidebarToggle?: () => void;
   onOpenDeleteVerification: () => void;
@@ -21,6 +21,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onOpenDeleteVerification
 }) => {
   const { currentUser, logout } = useAuth();
+  const isAdmin = currentUser?.role === 'administrador';
   const [quebradasOpen, setQuebradasOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -58,50 +59,54 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            <span>Monitoreo</span>
+            <span>{isAdmin ? 'Supervisión Cuencas' : 'Mi Quebrada'}</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </button>
 
-          {/* Quebradas Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setQuebradasOpen(!quebradasOpen)}
-              onBlur={() => setTimeout(() => setQuebradasOpen(false), 200)}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <span>Cuencas</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-            </button>
+          {/* Quebradas Dropdown - STRICTLY FOR ADMINISTRATORS ONLY */}
+          {isAdmin && (
+            <div className="relative">
+              <button
+                onClick={() => setQuebradasOpen(!quebradasOpen)}
+                onBlur={() => setTimeout(() => setQuebradasOpen(false), 200)}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100 border border-indigo-200/80 transition-colors cursor-pointer"
+                title="Supervisión integral de cuencas (Exclusivo Administrador)"
+              >
+                <span>Cuencas (Admin)</span>
+                <ChevronDown className="w-3.5 h-3.5 text-indigo-600" />
+              </button>
 
-            {quebradasOpen && (
-              <div className="absolute left-0 mt-1 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Quebradas Comuna 70 · SIATA
-                </div>
-                {CUENCAS_LIST.map((cuenca) => (
-                  <button
-                    key={cuenca.id}
-                    onClick={() => {
-                      if (onSelectCuenca) onSelectCuenca(cuenca.id);
-                      setQuebradasOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="font-semibold text-slate-900">{cuenca.name}</span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        cuenca.status === 'seguro'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}
+              {quebradasOpen && (
+                <div className="absolute left-0 mt-1 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Quebradas Comuna 70</span>
+                    <span className="bg-indigo-100 px-1.5 py-0.5 rounded text-[9px]">Admin</span>
+                  </div>
+                  {CUENCAS_LIST.map((cuenca) => (
+                    <button
+                      key={cuenca.id}
+                      onClick={() => {
+                        if (onSelectCuenca) onSelectCuenca(cuenca.id);
+                        setQuebradasOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
                     >
-                      {cuenca.capacityPercentage}%
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+                      <span className="font-semibold text-slate-900">{cuenca.name}</span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          cuenca.status === 'seguro'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {cuenca.capacityPercentage}%
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Mapa de Riesgo en Vivo Button */}
           <button
@@ -115,31 +120,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             Mapa de Riesgo SIATA
           </button>
 
-          {/* Emergencias y Reporte */}
-          <button
-            onClick={() => onNavigate('emergencias')}
-            className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
-              currentView === 'emergencias'
-                ? 'text-[#8B0000] font-bold bg-red-50'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            Emergencias & Reportes
-          </button>
-
-          {/* 123 Fast Emergency Line */}
-          <a
-            href="tel:123"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#8B0000] text-white text-xs font-bold hover:bg-[#720000] transition-colors shadow-2xs ml-1"
-            title="Línea Única de Emergencias Medellín 123"
-          >
-            <PhoneCall className="w-3.5 h-3.5" />
-            <span>123</span>
-          </a>
-
           <div className="h-6 w-px bg-slate-200 mx-1.5"></div>
 
-          {/* User Dropdown Button with integrated options: Ver Perfil, Configuración, Cerrar Sesión, Eliminar Cuenta */}
+          {/* User Dropdown Button */}
           <UserDropdown
             onNavigateToProfile={() => onNavigate('perfil')}
             onNavigateToSettings={() => onNavigate('configuracion')}
@@ -150,12 +133,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         {/* Mobile Hamburger Button */}
         <div className="flex items-center gap-2 md:hidden">
-          <a
-            href="tel:123"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#8B0000] text-white text-xs font-bold"
-          >
-            123
-          </a>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-slate-700 hover:bg-slate-100 rounded-xl"
@@ -176,7 +153,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             }}
             className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:bg-slate-100 flex items-center justify-between"
           >
-            <span>Monitoreo de Quebradas</span>
+            <span>{isAdmin ? 'Supervisión de Quebradas (Admin)' : 'Mi Quebrada Asignada'}</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
           </button>
 
@@ -190,22 +167,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             Mapa de Riesgo SIATA
           </button>
 
-          <button
-            onClick={() => {
-              onNavigate('emergencias');
-              setMobileMenuOpen(false);
-            }}
-            className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-800 hover:bg-slate-100"
-          >
-            Emergencias & Reporte Comunitario
-          </button>
-
           {/* User section in mobile */}
           <div className="pt-2 border-t border-slate-200">
             {currentUser ? (
               <div className="space-y-1">
                 <div className="px-3 py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-900">
-                  {currentUser.name}
+                  <div className="flex items-center justify-between">
+                    <span>{currentUser.name}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
+                      {isAdmin ? 'Administrador' : 'Habitante'}
+                    </span>
+                  </div>
                   <span className="block text-[10px] text-slate-500 font-normal">
                     {currentUser.barrioSector}
                   </span>

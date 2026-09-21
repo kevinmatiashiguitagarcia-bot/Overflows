@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
@@ -15,6 +15,10 @@ import { Logo } from './components/Logo';
 import { CuencaDetailModal } from './components/CuencaDetailModal';
 import { RecomendacionesModal } from './components/RecomendacionesModal';
 import { ReportModal } from './components/ReportModal';
+import { ProfileView } from './components/ProfileView';
+import { SettingsView } from './components/SettingsView';
+import { DeleteVerificationModal } from './components/DeleteVerificationModal';
+import { DataPrivacyModal } from './components/DataPrivacyModal';
 import { CuencaData } from './types';
 import { CUENCAS_LIST } from './data/cuencasData';
 import {
@@ -23,21 +27,43 @@ import {
   Radio,
   CheckCircle2,
   BellRing,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 
 function AppContent() {
-  const { currentUser, isGuest } = useAuth();
-  const [currentView, setCurrentView] = useState<'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil'>('inicio');
+  const { currentUser } = useAuth();
+  // Al iniciar sesión, la vista principal es directamente el mapa centrado en su sector
+  const [currentView, setCurrentView] = useState<'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion'>('mapa');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Modals state
-  const [selectedCuencaId, setSelectedCuencaId] = useState<string>('la-picacha');
+  // Derive initial cuenca based on user's registered sector
+  const deriveUserCuenca = (sector?: string) => {
+    if (!sector) return 'altavista';
+    const s = sector.toLowerCase();
+    if (s.includes('aguas frías') || s.includes('morro plan') || s.includes('picacha')) return 'la-picacha';
+    if (s.includes('esperanza') || s.includes('chispero') || s.includes('cañada')) return 'la-canada';
+    if (s.includes('morro') || s.includes('corazón') || s.includes('buenavista')) return 'buenavista';
+    if (s.includes('manzanillo') || s.includes('jardín') || s.includes('guayabala')) return 'la-guayabala';
+    return 'altavista';
+  };
+
+  const [selectedCuencaId, setSelectedCuencaId] = useState<string>(() => deriveUserCuenca(currentUser?.barrioSector));
   const [selectedCuencaForModal, setSelectedCuencaForModal] = useState<CuencaData | null>(null);
   const [recommendationsModalOpen, setRecommendationsModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
+
+  // Sync selectedCuencaId when user logs in or switches account
+  useEffect(() => {
+    if (currentUser?.barrioSector) {
+      setSelectedCuencaId(deriveUserCuenca(currentUser.barrioSector));
+      setCurrentView('mapa');
+    }
+  }, [currentUser?.id, currentUser?.barrioSector]);
 
   const showToast = (message: string) => {
     setNotificationToast(message);
@@ -51,10 +77,10 @@ function AppContent() {
     setCurrentView('mapa');
   };
 
-  // Si no se tiene cuenta previa iniciada, lo primero que sale es Iniciar Sesión o Registrarse
-  if (!currentUser && !isGuest) {
+  // Exclusividad para usuarios que inicien sesión: si no hay sesión iniciada, solo se muestra el acceso/registro
+  if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#f3f4f6] text-slate-900 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900">
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900">
         <header className="w-full bg-white border-b border-slate-200 py-3.5 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-2xs">
           <div className="flex items-center gap-3">
             <Logo size="md" showText={true} />
@@ -64,20 +90,20 @@ function AppContent() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Monitoreo Activo</span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#8B0000]" />
+              <span>Acceso Protegido</span>
             </span>
           </div>
         </header>
 
         <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-          <div className="w-full max-w-5xl">
-            <AuthView onSuccessRedirect={() => setCurrentView('inicio')} />
+          <div className="w-full max-w-xl">
+            <AuthView onSuccessRedirect={() => setCurrentView('mapa')} />
           </div>
         </main>
 
-        <footer className="py-4 text-center text-xs text-slate-400 border-t border-slate-200/80 bg-white/50">
+        <footer className="py-4 text-center text-xs text-slate-400 border-t border-slate-200/80 bg-white/70">
           Corregimiento de Altavista · Comuna 70 · Medellín, Antioquia
         </footer>
       </div>
@@ -86,7 +112,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-slate-900 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900">
-      {/* 1. FIXED LATERAL NAVIGATION SIDEBAR as requested */}
+      {/* 1. FIXED LATERAL NAVIGATION SIDEBAR */}
       <Sidebar
         currentView={currentView}
         onNavigate={(view) => setCurrentView(view)}
@@ -96,21 +122,22 @@ function AppContent() {
         onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
-      {/* 2. MAIN APPLICATION CONTENT (adjusted for fixed sidebar on desktop) */}
+      {/* 2. MAIN APPLICATION CONTENT */}
       <div
         className={`flex-1 flex flex-col transition-all duration-300 ${
           sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'
         }`}
       >
-        {/* Top Header matching Images 1 & 2 */}
+        {/* Top Header */}
         <TopHeader
           currentView={currentView}
           onNavigate={(view) => setCurrentView(view)}
           onSelectCuenca={handleSelectCuenca}
           onOpenSidebarToggle={() => setMobileSidebarOpen(true)}
+          onOpenDeleteVerification={() => setDeleteModalOpen(true)}
         />
 
-        {/* Emergency Alert Banner matching Image 1 & 2 */}
+        {/* Emergency Alert Banner */}
         <BannerAlert
           onOpenRecommendations={() => setRecommendationsModalOpen(true)}
         />
@@ -134,77 +161,24 @@ function AppContent() {
             />
           )}
 
-          {(currentView === 'auth' || currentView === 'perfil') && (
-            <AuthView onSuccessRedirect={() => setCurrentView('inicio')} />
+          {currentView === 'perfil' && (
+            <ProfileView
+              onBackToDashboard={() => setCurrentView('inicio')}
+              onOpenDeleteVerification={() => setDeleteModalOpen(true)}
+              onOpenPrivacyPolicy={() => setPrivacyModalOpen(true)}
+            />
           )}
 
-          {currentView === 'emergencias' && (
-            <div className="space-y-6 pb-12">
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 rounded-2xl bg-red-100 text-[#8B0000]">
-                    <PhoneCall className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-900">
-                      Central de Auxilio y Emergencias Comuna 70
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500">
-                      Canales directos de respuesta rápida ante crecientes súbitas e inundaciones en Altavista
-                    </p>
-                  </div>
-                </div>
+          {currentView === 'configuracion' && (
+            <SettingsView
+              onBackToDashboard={() => setCurrentView('inicio')}
+              onOpenDeleteVerification={() => setDeleteModalOpen(true)}
+              onOpenPrivacyPolicy={() => setPrivacyModalOpen(true)}
+            />
+          )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
-                  <div className="p-5 rounded-2xl bg-red-950 text-white flex flex-col justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-red-300 uppercase tracking-wide">
-                        Bomberos Medellín
-                      </div>
-                      <div className="text-3xl font-black font-mono mt-1">119</div>
-                      <p className="text-xs text-red-200 mt-2">
-                        Atención directa a desbordamientos, rescate y deslizamientos en la cuenca.
-                      </p>
-                    </div>
-                    <a
-                      href="tel:119"
-                      className="mt-4 py-2.5 px-3 rounded-xl bg-red-700 hover:bg-red-600 text-center font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <PhoneCall className="w-3.5 h-3.5" />
-                      <span>Marcar 119</span>
-                    </a>
-                  </div>
-
-                  <div className="p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">
-                        Línea Única de Seguridad
-                      </div>
-                      <div className="text-3xl font-black font-mono mt-1">123</div>
-                      <p className="text-xs text-slate-300 mt-2">
-                        Despacho coordinado DAGRD, Policía Nacional y ambulancias APH.
-                      </p>
-                    </div>
-                    <a
-                      href="tel:123"
-                      className="mt-4 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-center font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-slate-700"
-                    >
-                      <PhoneCall className="w-3.5 h-3.5" />
-                      <span>Marcar 123</span>
-                    </a>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-start gap-3">
-                  <BellRing className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="font-bold">¿Cuándo desalojar preventivamente?</strong> Si el sensor
-                    indica capacidad superior al 75%, el agua roza los estribos del puente peatonal, o los
-                    vigías reportan empalizadas densas en la parte alta. Desaloje hacia la Cancha El Corazón.
-                  </div>
-                </div>
-              </div>
-            </div>
+          {currentView === 'auth' && (
+            <AuthView onSuccessRedirect={() => setCurrentView('inicio')} />
           )}
         </main>
       </div>
@@ -238,6 +212,22 @@ function AppContent() {
         isOpen={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
         onReportSubmitted={(msg) => showToast(msg)}
+      />
+
+      {/* Delete Verification Modal */}
+      <DeleteVerificationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onDeleted={(msg) => {
+          showToast(msg);
+          setCurrentView('inicio');
+        }}
+      />
+
+      {/* Data Privacy Policy Modal */}
+      <DataPrivacyModal
+        isOpen={privacyModalOpen}
+        onClose={() => setPrivacyModalOpen(false)}
       />
     </div>
   );

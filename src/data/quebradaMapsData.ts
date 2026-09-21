@@ -454,7 +454,7 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       x: 620,
       y: 450,
       address: 'Carrera 84 #18-35 (Frente al Parque Principal)',
-      contact: 'Puesto de Mando Unificado: 123'
+      contact: 'Bomberos Medellín: 119 / Central Comunitaria'
     },
     incidentAlert: {
       text: 'Sensor Radar: Cauce normal con libre escorrentía',
@@ -1016,7 +1016,7 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       x: 390,
       y: 230,
       address: 'Vereda El Corazón (Límite Norte Seguro)',
-      contact: 'Punto de Mando Comuna 13 / Altavista: 123'
+      contact: 'Bomberos Medellín: 119 / Enlace Territorial Altavista'
     },
     specificInstructions: [
       {
@@ -1158,7 +1158,7 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       x: 620,
       y: 360,
       address: 'Calle 18 Sector Central y Canchas Polideportivas',
-      contact: 'Puesto de Mando Unificado Altavista: 123 / 119'
+      contact: 'Bomberos Medellín: 119 / Central de Monitoreo Altavista'
     },
     incidentAlert: {
       text: 'Mapa Oficial Comuna 70: Monitoreo conjunto de las cuencas de Altavista',

@@ -25,7 +25,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
   onOpenDeleteVerification,
   onNavigateToAuth
 }) => {
-  const { currentUser, logout, isGuest } = useAuth();
+  const { currentUser, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 

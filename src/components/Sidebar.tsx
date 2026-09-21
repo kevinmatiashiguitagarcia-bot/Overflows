@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 
 interface SidebarProps {
-  currentView: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil' | 'configuracion';
-  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'emergencias' | 'perfil' | 'configuracion') => void;
+  currentView: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion';
+  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion') => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   isOpenMobile: boolean;
@@ -35,28 +35,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile
 }) => {
   const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'administrador';
 
   const navItems = [
     {
       id: 'inicio' as const,
-      label: 'Monitoreo de Quebradas',
-      sublabel: 'Datos SIATA y Reportes',
+      label: isAdmin ? 'Supervisión General' : 'Mi Quebrada Asignada',
+      sublabel: isAdmin ? 'Red SIATA Comuna 70' : 'Telemetría y Estado',
       icon: Activity,
-      badge: 'SIATA'
+      badge: isAdmin ? 'Admin' : 'Exclusivo',
+      badgeColor: isAdmin ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-slate-800 text-slate-300 border-slate-700'
     },
     {
       id: 'mapa' as const,
       label: 'Mapa de Riesgo en Vivo',
-      sublabel: 'Radares y Cuencas Altavista',
+      sublabel: isAdmin ? 'Radares y Cuencas Altavista' : 'Sector Residencial',
       icon: MapPin,
       badge: 'En Vivo',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-    },
-    {
-      id: 'emergencias' as const,
-      label: 'Emergencias y Reportes',
-      sublabel: 'Avisos Ciudadanos & 123',
-      icon: MessageSquareWarning
     }
   ];
 
@@ -240,41 +236,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </nav>
-
-        {/* Quick Emergency Actions Box */}
-        {!collapsed ? (
-          <div className="p-3 mx-3 mb-3 rounded-xl bg-red-950/40 border border-red-900/50 space-y-2">
-            <div className="flex items-center gap-2 text-red-300 font-bold text-xs">
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>Emergencias Medellín</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <a
-                href="tel:119"
-                className="py-1.5 px-2 bg-red-800/80 hover:bg-red-700 text-white font-bold rounded-lg text-center flex items-center justify-center gap-1 transition-colors"
-              >
-                <PhoneCall className="w-3 h-3" />
-                <span>Bomberos 119</span>
-              </a>
-              <a
-                href="tel:123"
-                className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg text-center flex items-center justify-center gap-1 transition-colors border border-slate-700"
-              >
-                <span>Policía 123</span>
-              </a>
-            </div>
-          </div>
-        ) : (
-          <div className="p-2 flex flex-col items-center gap-2 mb-2">
-            <a
-              href="tel:123"
-              className="w-10 h-10 rounded-xl bg-red-800 hover:bg-red-700 text-white flex items-center justify-center shadow-xs"
-              title="Llamar Línea 123"
-            >
-              <PhoneCall className="w-4 h-4" />
-            </a>
-          </div>
-        )}
 
         {/* User Account Footer in Sidebar */}
         <div className="p-3 border-t border-slate-800/80 shrink-0">
