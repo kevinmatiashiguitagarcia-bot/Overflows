@@ -19,6 +19,7 @@ import { ProfileView } from './components/ProfileView';
 import { SettingsView } from './components/SettingsView';
 import { DeleteVerificationModal } from './components/DeleteVerificationModal';
 import { DataPrivacyModal } from './components/DataPrivacyModal';
+import { CitizenReportsView } from './components/CitizenReportsView';
 import { CuencaData } from './types';
 import { CUENCAS_LIST } from './data/cuencasData';
 import {
@@ -34,7 +35,7 @@ import {
 function AppContent() {
   const { currentUser } = useAuth();
   // Al iniciar sesión, la vista principal es directamente el mapa centrado en su sector
-  const [currentView, setCurrentView] = useState<'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion'>('mapa');
+  const [currentView, setCurrentView] = useState<'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion' | 'reportes'>('mapa');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -120,6 +121,7 @@ function AppContent() {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         isOpenMobile={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        onOpenDeleteVerification={() => setDeleteModalOpen(true)}
       />
 
       {/* 2. MAIN APPLICATION CONTENT */}
@@ -175,6 +177,10 @@ function AppContent() {
               onOpenDeleteVerification={() => setDeleteModalOpen(true)}
               onOpenPrivacyPolicy={() => setPrivacyModalOpen(true)}
             />
+          )}
+
+          {currentView === 'reportes' && (
+            <CitizenReportsView />
           )}
 
           {currentView === 'auth' && (

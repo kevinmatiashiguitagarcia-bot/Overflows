@@ -120,15 +120,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             Mapa de Riesgo SIATA
           </button>
 
-          <div className="h-6 w-px bg-slate-200 mx-1.5"></div>
-
-          {/* User Dropdown Button */}
-          <UserDropdown
-            onNavigateToProfile={() => onNavigate('perfil')}
-            onNavigateToSettings={() => onNavigate('configuracion')}
-            onOpenDeleteVerification={onOpenDeleteVerification}
-            onNavigateToAuth={() => onNavigate('auth')}
-          />
+          {/* Live System Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-semibold text-slate-700">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[11px] font-bold text-slate-800">Alerta Temprana Activa</span>
+          </div>
         </nav>
 
         {/* Mobile Hamburger Button */}

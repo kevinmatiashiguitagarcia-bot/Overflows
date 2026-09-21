@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -14,16 +14,21 @@ import {
   UserPlus,
   LogIn,
   Settings,
-  User
+  User,
+  LogOut,
+  Trash2,
+  MoreVertical,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
-  currentView: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion';
-  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion') => void;
+  currentView: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion' | 'reportes';
+  onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion' | 'reportes') => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  onOpenDeleteVerification: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,10 +37,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggleCollapse,
   isOpenMobile,
-  onCloseMobile
+  onCloseMobile,
+  onOpenDeleteVerification
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const isAdmin = currentUser?.role === 'administrador';
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const navItems = [
     {
@@ -53,6 +60,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: MapPin,
       badge: 'En Vivo',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+    },
+    {
+      id: 'reportes' as const,
+      label: 'Reportes Ciudadanos',
+      sublabel: 'Fotos y Videos Obligatorios',
+      icon: MessageSquareWarning,
+      badge: 'Alerta',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30'
     }
   ];
 
@@ -237,34 +252,132 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </nav>
 
-        {/* User Account Footer in Sidebar */}
-        <div className="p-3 border-t border-slate-800/80 shrink-0">
+        {/* User Account & Profile Menu exclusively situated at bottom-left */}
+        <div className="p-3 border-t border-slate-800/80 shrink-0 bg-slate-950/90">
           {currentUser ? (
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => {
-                  onNavigate('perfil');
-                  onCloseMobile();
-                }}
-                className={`flex items-center gap-2.5 overflow-hidden text-left hover:opacity-90 cursor-pointer ${
-                  collapsed ? 'justify-center w-full' : ''
-                }`}
-                title="Ver perfil"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#8B0000] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-red-400/30">
-                  {currentUser.name.charAt(0)}
-                </div>
-                {!collapsed && (
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate">
-                      {currentUser.name}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {currentUser.barrioSector}
-                    </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    onNavigate('perfil');
+                    onCloseMobile();
+                  }}
+                  className={`flex items-center gap-2.5 overflow-hidden text-left hover:opacity-90 cursor-pointer ${
+                    collapsed ? 'justify-center w-full' : ''
+                  }`}
+                  title="Ver perfil de usuario"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[#8B0000] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-red-400/30">
+                    {currentUser.name.charAt(0)}
                   </div>
+                  {!collapsed && (
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">
+                        {currentUser.name}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {currentUser.barrioSector}
+                      </p>
+                    </div>
+                  )}
+                </button>
+
+                {!collapsed && (
+                  <button
+                    onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                    title="Menú de cuenta"
+                  >
+                    {profileMenuOpen ? <X className="w-4 h-4" /> : <MoreVertical className="w-4 h-4" />}
+                  </button>
                 )}
-              </button>
+              </div>
+
+              {/* Profile Menu Actions: Eliminar cuenta y Cerrar sesión */}
+              {(!collapsed && profileMenuOpen) && (
+                <div className="pt-2 border-t border-slate-800 space-y-1 animate-in fade-in slide-in-from-bottom-1">
+                  <button
+                    onClick={() => {
+                      onNavigate('perfil');
+                      setProfileMenuOpen(false);
+                      onCloseMobile();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                  >
+                    <User className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Mi Perfil</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onNavigate('configuracion');
+                      setProfileMenuOpen(false);
+                      onCloseMobile();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Configuración</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      onCloseMobile();
+                      logout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Cerrar sesión</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      onCloseMobile();
+                      onOpenDeleteVerification();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:text-rose-200 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Eliminar cuenta</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Direct quick action buttons when not expanding or when collapsed */}
+              {!profileMenuOpen && (
+                <div className={`flex items-center gap-1.5 pt-1 ${collapsed ? 'flex-col' : 'justify-between'}`}>
+                  <button
+                    onClick={() => {
+                      onCloseMobile();
+                      logout();
+                    }}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-900 transition-colors cursor-pointer ${
+                      collapsed ? 'w-full justify-center p-2' : ''
+                    }`}
+                    title="Cerrar sesión"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-amber-400" />
+                    {!collapsed && <span>Cerrar sesión</span>}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onCloseMobile();
+                      onOpenDeleteVerification();
+                    }}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors cursor-pointer ${
+                      collapsed ? 'w-full justify-center p-2' : ''
+                    }`}
+                    title="Eliminar cuenta permanentemente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    {!collapsed && <span>Eliminar cuenta</span>}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className={`space-y-1 ${collapsed ? 'text-center' : ''}`}>
