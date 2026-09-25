@@ -194,115 +194,32 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
         </div>
       )}
 
-      {/* 1. Dedicated Quebrada Selector Bar (Admin Multi-cuenca vs Non-Admin Exclusive) */}
+      {/* 1. Dedicated Quebrada Indicator Bar (Strictly Isolated to Selected / Assigned Quebrada) */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {isAdmin ? (
-          /* Left: Interactive Quebradas Tabs (Exclusively for Administrators) */
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">
-                Panel Multicuenca:
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">
-                Admin
-              </span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
+              <Compass className="w-5 h-5 text-emerald-400" />
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {CUENCAS_LIST.map((cuenca) => {
-                const isSelected = cuenca.id === activeCuencaId;
-                const isNetworkView = cuenca.id === 'red-comuna-70';
-                const statusColor =
-                  cuenca.status === 'seguro'
-                    ? 'bg-emerald-500'
-                    : cuenca.status === 'alerta_amarilla'
-                    ? 'bg-amber-500'
-                    : 'bg-rose-500';
-
-                return (
-                  <button
-                    key={cuenca.id}
-                    onClick={() => handleSelectQuebrada(cuenca.id)}
-                    title={isNetworkView ? 'Ver red integral de todas las quebradas' : `Desplegar exclusivamente la zona y cauce de la Quebrada ${cuenca.name}`}
-                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                      isSelected
-                        ? isNetworkView
-                          ? 'bg-indigo-950 text-white shadow-sm ring-2 ring-indigo-400'
-                          : 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
-                        : isNetworkView
-                        ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
-                        : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full ${statusColor} ${
-                        cuenca.status !== 'seguro' ? 'animate-pulse' : ''
-                      }`}
-                    ></span>
-                    <span>{isNetworkView ? 'Red Completa (9 Veredas)' : `Quebrada ${cuenca.name}`}</span>
-                    <span
-                      className={`text-[11px] font-mono font-medium px-1.5 py-0.2 rounded ${
-                        isSelected
-                          ? isNetworkView
-                            ? 'bg-indigo-900 text-indigo-200'
-                            : 'bg-slate-800 text-slate-300'
-                          : isNetworkView
-                          ? 'bg-indigo-200/80 text-indigo-800'
-                          : 'bg-slate-200/90 text-slate-600'
-                      }`}
-                    >
-                      {cuenca.capacityPercentage}%
-                    </span>
-                  </button>
-                );
-              })}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Monitoreo Hidrológico de Quebrada
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                  Zona Exclusiva
+                </span>
+              </div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900">
+                Quebrada {cuencaMeta.name} · {userSectorInfo.label}
+              </h3>
             </div>
           </div>
-        ) : (
-          /* Left: Non-admin exclusive indicator (No tabs or navigation to other quebradas) */
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
-                <Compass className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    Cuenca Asignada Única
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
-                    Exclusivo
-                  </span>
-                </div>
-                <h3 className="text-sm sm:text-base font-black text-slate-900">
-                  Quebrada {cuencaMeta.name} · {userSectorInfo.label}
-                </h3>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Right: Layer Toggles and Google Maps Link */}
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 flex-wrap">
           <span className="text-slate-400 font-medium">Capas:</span>
-
-          {isAdmin && (
-            currentMap.id !== 'red-comuna-70' ? (
-              <button
-                onClick={() => handleSelectQuebrada('red-comuna-70')}
-                className="px-3 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Alternar a la vista de todas las quebradas de la Comuna 70"
-              >
-                <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Ver Todas las Quebradas</span>
-              </button>
-            ) : (
-              <span className="px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-950 border border-indigo-300 font-bold flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Red Integral Activa</span>
-              </span>
-            )
-          )}
 
           <button
             onClick={() =>
@@ -429,33 +346,14 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
           </div>
 
           {/* Dedicated Quebrada Isolation Notification Banner */}
-          {currentMap.id !== 'red-comuna-70' ? (
-            <div className="bg-sky-50 border-b border-sky-200/90 px-5 py-2.5 flex items-center justify-between gap-3 text-xs text-sky-950">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse shrink-0"></span>
-                <span>
-                  Visualizando <strong>únicamente la zona y el cauce</strong> de la <strong>Quebrada {currentMap.name}</strong> ({currentMap.elevationRange}).
-                </span>
-              </div>
-              {isAdmin && (
-                <button
-                  onClick={() => handleSelectQuebrada('red-comuna-70')}
-                  className="text-sky-700 hover:text-sky-900 font-bold underline cursor-pointer text-xs shrink-0"
-                >
-                  Ver red completa de la Comuna 70 →
-                </button>
-              )}
+          <div className="bg-sky-50 border-b border-sky-200/90 px-5 py-2.5 flex items-center justify-between gap-3 text-xs text-sky-950">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse shrink-0"></span>
+              <span>
+                Visualizando <strong>únicamente la zona y el cauce</strong> de la <strong>Quebrada {currentMap.name}</strong> ({currentMap.elevationRange}).
+              </span>
             </div>
-          ) : (
-            <div className="bg-indigo-50 border-b border-indigo-200/90 px-5 py-2.5 flex items-center justify-between gap-3 text-xs text-indigo-950">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-indigo-700 shrink-0" />
-                <span>
-                  Red Hídrica Integral activa: Mapeo de todas las quebradas de la Comuna 70. Para aislar una quebrada, selecciónala en la barra superior o haz clic sobre ella.
-                </span>
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Realistic GIS Map: Google Maps & Satellite, Urban Streets & Risk Colors */}
           <div className="p-3 bg-slate-100">
@@ -658,151 +556,92 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Comprehensive Hydrographic Network of Comuna 70 (Altavista) - Exclusively for Administrators */}
-      {isAdmin && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-indigo-200/80 shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-black text-[11px] uppercase tracking-wider">
-                  Panel de Supervisión · Rol Administrador
-                </span>
-                <span className="text-xs font-semibold text-slate-500">
-                  Cartografía Oficial & Red General
-                </span>
-              </div>
-              <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                Red Hidrográfica y Sectores de Paso · Comuna 70
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-                Georreferenciación precisa de las microcuencas que atraviesan las 9 veredas del Corregimiento de Altavista, verificadas con la red hidrográfica de Medellín.
-              </p>
+      {/* 3. Tramos y Puntos Georreferenciados de la Quebrada Seleccionada */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 font-black text-[11px] uppercase tracking-wider">
+                Georreferenciación Local
+              </span>
+              <span className="text-xs font-semibold text-slate-500">
+                Puntos de Monitoreo en Terreno
+              </span>
             </div>
-
-            <div className="flex items-center gap-3 shrink-0">
-              <button
-                onClick={() => handleSelectQuebrada('red-comuna-70')}
-                className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-              >
-                <Map className="w-4 h-4 text-cyan-400" />
-                <span>Ver Red Completa en Visor</span>
-              </button>
-
-              <a
-                href="https://www.google.com/maps/search/?api=1&query=Corregimiento+Altavista+Medellin+Quebradas"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all"
-              >
-                <ExternalLink className="w-4 h-4" />
-                <span>Abrir Comuna 70 en Google Maps</span>
-              </a>
-            </div>
+            <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+              Sensores y Puntos Clave de Quebrada {currentMap.name}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
+              Microcuenca de {currentMap.name} ({currentMap.elevationRange}). Red de estaciones pluviométricas y de nivel, sitios de referencia comunitaria y cotas altas.
+            </p>
           </div>
 
-          {/* Informative Verification Callout */}
-          <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80 flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shrink-0 mt-0.5">
-              <Info className="w-4 h-4" />
-            </div>
-            <div className="text-xs text-blue-950 space-y-1">
-              <div className="font-bold text-blue-900">
-                Verificación y Corrección Geográfica de la Quebrada Las Cañadas
-              </div>
-              <p className="text-blue-800 leading-relaxed">
-                La Quebrada Las Cañadas nace en la Vereda La Esperanza Alta (cota 2,180 msnm), desciende por el sector de ladera El Chispero, cruza la vía de acceso y el puente peatonal de la Calle 18A y desemboca en la margen derecha de la Quebrada Altavista a la altura de la Vereda San Pablo. El visor satelital y estándar refleja fielmente este trazado junto con todas las cuencas vecinas.
-              </p>
-            </div>
-          </div>
-
-          {/* Quebradas Grid with direct Google Maps routes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {COMUNA_70_QUEBRADAS_NETWORK.map((item) => {
-              const isSelected = selectedBranchId === item.id || selectedCuencaId === item.id.replace('-main', '').replace('-branch', '');
-              return (
-                <div
-                  key={item.id}
-                  className={`p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4 ${
-                    isSelected
-                      ? 'bg-sky-50/70 border-sky-300 ring-2 ring-sky-400/30'
-                      : 'bg-slate-50/60 hover:bg-white border-slate-200'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                        <h4 className="font-extrabold text-sm text-slate-900">{item.name}</h4>
-                      </div>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          item.status === 'seguro'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : item.status === 'alerta_amarilla'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {item.status === 'seguro' ? 'Normal' : item.status === 'alerta_amarilla' ? 'Vigilancia' : 'Crítico'}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-slate-600">
-                      <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block">
-                        Recorrido y Sectores:
-                      </span>
-                      <p className="text-slate-700 leading-relaxed font-medium bg-white p-2.5 rounded-xl border border-slate-200/80">
-                        {item.veredasPassed}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
-                    <button
-                      onClick={() => {
-                        const targetId = item.id.includes('altavista')
-                          ? 'altavista'
-                          : item.id.includes('picacha')
-                          ? 'la-picacha'
-                          : item.id.includes('buenavista')
-                          ? 'buenavista'
-                          : item.id.includes('canada')
-                          ? 'la-canada'
-                          : item.id.includes('guayabala')
-                          ? 'la-guayabala'
-                          : item.id.includes('pelon')
-                          ? 'el-pelon'
-                          : item.id.includes('buga')
-                          ? 'buga-barcino'
-                          : item.id.includes('ana-diaz')
-                          ? 'ana-diaz'
-                          : 'red-comuna-70';
-                        handleSelectQuebrada(targetId);
-                        setSelectedBranchId(null);
-                      }}
-                      className="flex-1 py-2 px-3 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <Crosshair className="w-3.5 h-3.5 text-slate-600" />
-                      <span>Desplegar solo esta zona</span>
-                    </button>
-
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.googleMapsRef)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors shadow-2xs"
-                      title={`Abrir ${item.name} en Google Maps`}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Google Maps</span>
-                    </a>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex items-center gap-3 shrink-0">
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Quebrada ${currentMap.name}, Altavista, Medellín`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Abrir Quebrada en Google Maps</span>
+            </a>
           </div>
         </div>
-      )}
+
+        {/* Sensory and Landmark Points Grid for THIS Quebrada */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {currentMap.sensors.map((sensor) => (
+            <div
+              key={sensor.id}
+              className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white transition-all flex flex-col justify-between gap-4"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
+                    {sensor.code}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    Sensor Telemétrico
+                  </span>
+                </div>
+                <h4 className="font-extrabold text-sm text-slate-900">{sensor.name}</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Cota topográfica: <strong>{sensor.elevation} msnm</strong>
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-500">Nivel registrado:</span>
+                <span className="font-bold text-slate-900">{sensor.level.toFixed(2)} m / {sensor.maxLevel.toFixed(2)} m</span>
+              </div>
+            </div>
+          ))}
+
+          {currentMap.landmarks.slice(0, 3).map((lm, idx) => (
+            <div
+              key={`lm-card-${idx}`}
+              className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white transition-all flex flex-col justify-between gap-4"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                    Referencia Local
+                  </span>
+                </div>
+                <h4 className="font-extrabold text-sm text-slate-900">{lm.text}</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  {lm.description || 'Punto comunitario verificado en el trazado de la quebrada.'}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/80 text-xs text-slate-400">
+                Comuna 70 · Altavista
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Google Maps Quick Points Explorer Modal */}
       {showMapsQuickList && (
@@ -834,26 +673,6 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Basin Switcher Filter Bar (Exclusively for Administrators) */}
-            {isAdmin && (
-              <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs">
-                <span className="font-bold text-slate-500 shrink-0">Cambiar Cuenca:</span>
-                {Object.values(QUEBRADAS_MAP_DATA).map((q) => (
-                  <button
-                    key={q.id}
-                    onClick={() => handleSelectQuebrada(q.id)}
-                    className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-                      activeCuencaId === q.id
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-white text-slate-700 hover:bg-slate-200/70 border border-slate-200'
-                    }`}
-                  >
-                    {q.name}
-                  </button>
-                ))}
-              </div>
-            )}
 
             {/* Modal Body - Scrollable Points List */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">

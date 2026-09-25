@@ -24,6 +24,8 @@ interface AuthContextType {
     updates: { email?: string; phone?: string }
   ) => { success: boolean; message: string; error?: string };
   toggleUserRole: (userId: string) => void;
+  requestPasswordReset: (email: string) => { success: boolean; code?: string; error?: string };
+  resetPassword: (email: string, code: string, newPassword: string) => { success: boolean; error?: string };
 }
 
 const STORAGE_USERS_KEY = 'overflows_altavista_users_v3';
@@ -82,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Fallback
     }
-    return null;
+    return DEFAULT_USERS[1];
   });
 
   // Sync users to localStorage
@@ -329,6 +331,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const [activeResetCodes, setActiveResetCodes] = useState<Record<string, { code: string; expiresAt: number }>>({});
+
+  const requestPasswordReset = (email: string): { success: boolean; code?: string; error?: string } => {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = usersRegistry.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      return {
+        success: false,
+        error: 'No se encontró ninguna cuenta comunitaria registrada con este correo electrónico.'
+      };
+    }
+
+    // Generate secure 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes validity
+
+    setActiveResetCodes((prev) => ({
+      ...prev,
+      [cleanEmail]: { code, expiresAt }
+    }));
+
+    return {
+      success: true,
+      code
+    };
+  };
+
+  const resetPassword = (email: string, code: string, newPassword: string): { success: boolean; error?: string } => {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = usersRegistry.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      return { success: false, error: 'Usuario no encontrado en el sistema.' };
+    }
+
+    const resetEntry = activeResetCodes[cleanEmail];
+    if (!resetEntry) {
+      return { success: false, error: 'No hay ninguna solicitud de recuperación activa para este correo.' };
+    }
+
+    if (Date.now() > resetEntry.expiresAt) {
+      return { success: false, error: 'El código de verificación ha expirado. Por favor solicita uno nuevo.' };
+    }
+
+    if (resetEntry.code !== code.trim()) {
+      return { success: false, error: 'El código de verificación de 6 dígitos ingresado es incorrecto.' };
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'La nueva contraseña debe tener como mínimo 6 caracteres.' };
+    }
+
+    // Update user password in registry
+    setUsersRegistry((prev) =>
+      prev.map((u) => {
+        if (u.id === user.id) {
+          return {
+            ...u,
+            passwordHash: newPassword
+          };
+        }
+        return u;
+      })
+    );
+
+    // Remove used code
+    setActiveResetCodes((prev) => {
+      const copy = { ...prev };
+      delete copy[cleanEmail];
+      return copy;
+    });
+
+    return { success: true };
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -340,7 +418,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         verifyCurrentUserPassword,
         deleteAccount,
         updateUserContact,
-        toggleUserRole
+        toggleUserRole,
+        requestPasswordReset,
+        resetPassword
       }}
     >
       {children}

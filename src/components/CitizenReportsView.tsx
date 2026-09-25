@@ -329,6 +329,7 @@ export const CitizenReportsView: React.FC = () => {
                         src={att.url}
                         alt={att.name}
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
                       />
                     ) : (
                       <div className="flex flex-col items-center text-white gap-1">
@@ -458,6 +459,7 @@ export const CitizenReportsView: React.FC = () => {
                           src={item.url}
                           alt="Evidencia del cauce"
                           className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-white">

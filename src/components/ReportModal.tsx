@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { SECTORS_LIST } from '../data/cuencasData';
 import { useAuth } from '../context/AuthContext';
+import { VigiaReport } from '../types';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -85,8 +86,33 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
     setSubmitting(true);
     setTimeout(() => {
+      const STORAGE_REPORTS_KEY = 'overflows_altavista_community_reports';
+      const newVigiaReport: VigiaReport = {
+        id: `report-${Date.now()}`,
+        authorName: currentUser?.name || 'Habitante Altavista',
+        authorRole: currentUser?.role || 'habitante',
+        isVerified: true,
+        timestamp: new Date().toISOString(),
+        timeAgo: 'Justo ahora',
+        content: `[Nivel: ${
+          level === 'desbordada' ? 'Desbordada' : level === 'al_puente' ? 'Al puente' : 'Bajo muro'
+        }] ${notes.trim()}`,
+        location: sector,
+        imageAttached: attachments.length > 0,
+        imageUrl: attachments[0]?.url,
+        protocolPhase: level === 'desbordada' ? 'Alerta Máxima' : level === 'al_puente' ? 'Precaución' : undefined
+      };
+
+      try {
+        const stored = localStorage.getItem(STORAGE_REPORTS_KEY);
+        const list = stored ? JSON.parse(stored) : [];
+        localStorage.setItem(STORAGE_REPORTS_KEY, JSON.stringify([newVigiaReport, ...list]));
+      } catch (err) {
+        console.warn('Could not store report in localStorage:', err);
+      }
+
       setSubmitting(false);
-      onReportSubmitted(`Reporte verificado con evidencia para ${sector}. La Red de Vigías fue notificada.`);
+      onReportSubmitted(`Reporte verificado con evidencia fotográfica para ${sector}. La Red de Vigías fue notificada.`);
       onClose();
     }, 600);
   };
@@ -238,7 +264,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 {attachments.map((a) => (
                   <div key={a.id} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-900 group">
                     {a.type === 'image' ? (
-                      <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                      <img src={a.url} alt={a.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white">
                         <Video className="w-5 h-5 text-emerald-400" />

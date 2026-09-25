@@ -17,7 +17,11 @@ import {
   Lock,
   User,
   ArrowLeft,
-  FileText
+  FileText,
+  KeyRound,
+  RefreshCw,
+  HelpCircle,
+  ArrowRight
 } from 'lucide-react';
 
 interface AuthViewProps {
@@ -25,10 +29,22 @@ interface AuthViewProps {
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
-  const { currentUser, login, register } = useAuth();
+  const { currentUser, login, register, requestPasswordReset, resetPassword } = useAuth();
 
   // Mode: 'login' | 'register'
   const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  // Password recovery flow states
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryStep, setRecoveryStep] = useState<1 | 2 | 3>(1);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [generatedCodeNotice, setGeneratedCodeNotice] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoverySuccess, setRecoverySuccess] = useState<string | null>(null);
 
   // Login form fields
   const [identifier, setIdentifier] = useState('');
@@ -108,6 +124,72 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     }
   };
 
+  // Password Recovery Handlers
+  const handleRequestCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    setRecoverySuccess(null);
+
+    if (!recoveryEmail.trim()) {
+      setRecoveryError('Por favor ingresa tu correo electrónico registrado.');
+      return;
+    }
+
+    const res = requestPasswordReset(recoveryEmail);
+    if (!res.success) {
+      setRecoveryError(res.error || 'Error al solicitar el código.');
+    } else {
+      setGeneratedCodeNotice(res.code || null);
+      setRecoverySuccess(`Código de verificación enviado. Ingrésalo a continuación.`);
+      setRecoveryStep(2);
+    }
+  };
+
+  const handleVerifyCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    setRecoverySuccess(null);
+
+    if (!recoveryCode.trim() || recoveryCode.trim().length !== 6) {
+      setRecoveryError('Ingresa el código numérico de seguridad de 6 dígitos.');
+      return;
+    }
+
+    setRecoverySuccess('Código verificado con éxito. Establece tu nueva contraseña segura.');
+    setRecoveryStep(3);
+  };
+
+  const handleResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryError(null);
+    setRecoverySuccess(null);
+
+    if (newPassword.length < 6) {
+      setRecoveryError('La contraseña debe tener como mínimo 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setRecoveryError('Las contraseñas no coinciden. Por favor verifícalas.');
+      return;
+    }
+
+    const res = resetPassword(recoveryEmail, recoveryCode, newPassword);
+    if (!res.success) {
+      setRecoveryError(res.error || 'No se pudo actualizar la contraseña.');
+    } else {
+      setSuccessMessage('¡Contraseña cambiada exitosamente! Ya puedes iniciar sesión con tu nueva clave.');
+      setIdentifier(recoveryEmail);
+      setPassword('');
+      setRecoveryMode(false);
+      setRecoveryStep(1);
+      setRecoveryCode('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setGeneratedCodeNotice(null);
+    }
+  };
+
   return (
     <div className="max-w-xl mx-auto py-4 sm:py-8 px-2">
       {/* Return button (only visible if already authenticated) */}
@@ -135,15 +217,229 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
             <Logo size="lg" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
-            {mode === 'login' ? 'Iniciar Sesión en Overflows' : 'Crear Cuenta Comunitaria'}
+            {recoveryMode
+              ? 'Recuperación de Contraseña'
+              : mode === 'login'
+              ? 'Iniciar Sesión en Overflows'
+              : 'Crear Cuenta Comunitaria'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
-            {mode === 'login'
+            {recoveryMode
+              ? 'Proceso seguro paso a paso para restablecer el acceso a tu cuenta comunitaria.'
+              : mode === 'login'
               ? 'Accede al sistema comunitario de alerta temprana y monitoreo de quebradas.'
               : 'Regístrate para publicar reportes de cauces y recibir avisos preventivos de crecientes.'}
           </p>
         </div>
 
+        {/* RECOVERY MODE VIEW */}
+        {recoveryMode ? (
+          <div className="space-y-5">
+            {/* Step Progress Bar */}
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+              <div className="flex items-center justify-between text-xs font-bold mb-2">
+                <span className={recoveryStep >= 1 ? 'text-[#8B0000]' : 'text-slate-400'}>
+                  1. Correo
+                </span>
+                <span className="text-slate-300">→</span>
+                <span className={recoveryStep >= 2 ? 'text-[#8B0000]' : 'text-slate-400'}>
+                  2. Código
+                </span>
+                <span className="text-slate-300">→</span>
+                <span className={recoveryStep >= 3 ? 'text-[#8B0000]' : 'text-slate-400'}>
+                  3. Nueva Contraseña
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#8B0000] h-full transition-all duration-300"
+                  style={{ width: recoveryStep === 1 ? '33%' : recoveryStep === 2 ? '66%' : '100%' }}
+                />
+              </div>
+            </div>
+
+            {/* Recovery Feedback Messages */}
+            {recoveryError && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{recoveryError}</span>
+              </div>
+            )}
+            {recoverySuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{recoverySuccess}</span>
+              </div>
+            )}
+
+            {/* STEP 1: Correo de Recuperación */}
+            {recoveryStep === 1 && (
+              <form onSubmit={handleRequestCode} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Correo electrónico registrado
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={recoveryEmail}
+                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                      placeholder="ejemplo@overflowsaltavista.org"
+                      required
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[#8B0000] focus:outline-hidden"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    Te enviaremos un código de seguridad de 6 dígitos para validar tu identidad.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecoveryMode(false);
+                      setRecoveryError(null);
+                      setRecoverySuccess(null);
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <span>Enviar Código</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* STEP 2: Código de Verificación */}
+            {recoveryStep === 2 && (
+              <form onSubmit={handleVerifyCode} className="space-y-4">
+                {generatedCodeNotice && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                    <p className="font-bold flex items-center gap-1.5 mb-1">
+                      <KeyRound className="w-4 h-4 text-amber-700" />
+                      Código de Validación Generado:
+                    </p>
+                    <p className="text-base font-mono font-extrabold tracking-widest text-[#8B0000]">
+                      {generatedCodeNotice}
+                    </p>
+                    <p className="text-[11px] text-amber-800/80 mt-1">
+                      (Válido durante 15 minutos para la cuenta {recoveryEmail})
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Ingresa el código de 6 dígitos
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={recoveryCode}
+                    onChange={(e) => setRecoveryCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    required
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-center font-mono text-xl tracking-widest font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:ring-2 focus:ring-[#8B0000] focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryStep(1)}
+                    className="py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <span>Validar Código</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* STEP 3: Establecer Nueva Contraseña */}
+            {recoveryStep === 3 && (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Nueva Contraseña Segura
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                      minLength={6}
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[#8B0000] focus:outline-hidden"
+                    />
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Confirmar Nueva Contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Repite la nueva contraseña"
+                      required
+                      minLength={6}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-[#8B0000] focus:outline-hidden"
+                    />
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecoveryMode(false);
+                      setRecoveryError(null);
+                    }}
+                    className="py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Guardar y Volver al Login</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        ) : (
+          <>
         {/* Mode Switcher Tabs (Only Iniciar Sesión / Registrarme - NO ROLES!) */}
         <div className="flex rounded-2xl bg-slate-100 p-1 mb-6 border border-slate-200/80">
           <button
@@ -249,8 +545,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded border-slate-300 text-[#8B0000] focus:ring-[#8B0000]"
                 />
-                <span>Recordar sesión en este dispositivo</span>
+                <span>Recordar sesión</span>
               </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRecoveryMode(true);
+                  setRecoveryStep(1);
+                  setRecoveryEmail(identifier.includes('@') ? identifier : '');
+                  setRecoveryError(null);
+                  setRecoverySuccess(null);
+                }}
+                className="font-bold text-[#8B0000] hover:text-[#720000] hover:underline cursor-pointer"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
             </div>
 
             <button
@@ -260,6 +570,43 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               <LogIn className="w-4 h-4" />
               <span>Iniciar Sesión</span>
             </button>
+
+            {/* Quick Demo Login Access */}
+            <div className="pt-4 border-t border-slate-100 space-y-2">
+              <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
+                Acceso Rápido de Prueba (Demo)
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = login('sandovaldiazmariana23@gmail.com', 'admin2026');
+                    if (res.success) {
+                      setSuccessMessage('Sesión iniciada como Administrador.');
+                      setTimeout(onSuccessRedirect, 500);
+                    }
+                  }}
+                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left text-xs transition-colors cursor-pointer"
+                >
+                  <p className="font-bold text-slate-800">Mariana Sandoval</p>
+                  <p className="text-[11px] text-[#8B0000] font-semibold">Administradora · Morro Plan</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = login('h.ruiz@overflowsaltavista.org', '123456');
+                    if (res.success) {
+                      setSuccessMessage('Sesión iniciada como Habitante.');
+                      setTimeout(onSuccessRedirect, 500);
+                    }
+                  }}
+                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left text-xs transition-colors cursor-pointer"
+                >
+                  <p className="font-bold text-slate-800">Don Hernando Ruiz</p>
+                  <p className="text-[11px] text-slate-500 font-semibold">Habitante · San Pablo</p>
+                </button>
+              </div>
+            </div>
           </form>
         )}
 
@@ -404,6 +751,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               <span>Crear Cuenta Comunitaria</span>
             </button>
           </form>
+        )}
+          </>
         )}
       </div>
 

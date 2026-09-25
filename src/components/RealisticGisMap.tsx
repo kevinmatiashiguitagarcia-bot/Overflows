@@ -21,6 +21,7 @@ import {
   Info,
   Waves,
   Navigation,
+  Mountain,
   X
 } from 'lucide-react';
 
@@ -41,7 +42,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
   const baseTileLayerRef = useRef<L.TileLayer | null>(null);
   const labelsTileLayerRef = useRef<L.TileLayer | null>(null);
 
-  const [mapStyle, setMapStyle] = useState<'estandar' | 'satelite'>('estandar');
+  const [mapStyle, setMapStyle] = useState<'estandar' | 'relieve' | 'satelite'>('estandar');
   const [selectedSensor, setSelectedSensor] = useState<GisSensorPoint | null>(null);
   const [selectedEvacPoint, setSelectedEvacPoint] = useState<GisEvacuationPoint | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<GisRiskSegment | null>(null);
@@ -76,12 +77,12 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
     // Add custom zoom control at bottom right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Initial base tile layer (CartoDB Voyager: Google Maps style vector raster)
+    // Initial base tile layer (OpenStreetMap Standard: clean, free, no API key required)
     const standardTiles = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        subdomains: ['a', 'b', 'c'],
         maxZoom: 19
       }
     ).addTo(map);
@@ -126,33 +127,43 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
     }
 
     if (mapStyle === 'estandar') {
-      // Crisp Google Maps / Urban Road Map style with street names & building blocks
+      // Clean, unrestricted OpenStreetMap Standard layer with streets, barrios and quebradas
       const standardTiles = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         {
-          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-          subdomains: 'abcd',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          subdomains: ['a', 'b', 'c'],
           maxZoom: 19
         }
       ).addTo(map);
       baseTileLayerRef.current = standardTiles;
+    } else if (mapStyle === 'relieve') {
+      // Orographic Relief Map with Mountain Contours & Altavista Topography
+      const topoTiles = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: 'Tiles &copy; Esri &mdash; Topografía y Curvas de Nivel',
+          maxZoom: 18
+        }
+      ).addTo(map);
+      baseTileLayerRef.current = topoTiles;
     } else {
       // Photorealistic Aerial Satellite Imagery from Esri World Imagery
       const satelliteTiles = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
-          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+          attribution: 'Tiles &copy; Esri World Imagery',
           maxZoom: 18
         }
       ).addTo(map);
       baseTileLayerRef.current = satelliteTiles;
 
-      // Overlay transparent street labels so roads remain crystal clear
+      // Overlay transparent street and place labels from Esri Reference (no API key, no watermark)
       const labelsTiles = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
         {
-          subdomains: 'abcd',
-          maxZoom: 19,
+          attribution: 'Labels &copy; Esri',
+          maxZoom: 18,
           pane: 'overlayPane',
           opacity: 0.95
         }
@@ -338,7 +349,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
       {/* Realist Leaflet Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-      {/* Floating Header Toolbar: Estándar vs Satélite toggle */}
+      {/* Floating Header Toolbar: Estándar vs Relieve vs Satélite toggle */}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <div className="flex items-center p-1 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200">
           <button
@@ -351,7 +362,21 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
             }`}
           >
             <MapIcon className="w-3.5 h-3.5 text-blue-500" />
-            <span>Modo Estándar (Calles)</span>
+            <span>Calles</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMapStyle('relieve')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              mapStyle === 'relieve'
+                ? 'bg-amber-700 text-white shadow-sm'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+            title="Curvas de nivel y relieve orográfico característico de Altavista"
+          >
+            <Mountain className="w-3.5 h-3.5 text-amber-500" />
+            <span>Relieve y Curvas</span>
           </button>
 
           <button
@@ -364,7 +389,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
             }`}
           >
             <Globe className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Modo Satélite (Aéreo)</span>
+            <span>Satélite</span>
           </button>
         </div>
 

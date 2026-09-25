@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeLanguageProvider } from './context/ThemeLanguageContext';
+import { SiataRealtimeProvider } from './context/SiataRealtimeContext';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { BannerAlert } from './components/BannerAlert';
@@ -148,11 +150,13 @@ function AppContent() {
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {currentView === 'inicio' && (
             <DashboardView
+              selectedCuencaId={selectedCuencaId}
               onNavigateToMap={(cuencaId) => {
                 if (cuencaId) setSelectedCuencaId(cuencaId);
                 setCurrentView('mapa');
               }}
               onOpenCuencaModal={(cuenca) => setSelectedCuencaForModal(cuenca)}
+              onNavigateToReports={() => setCurrentView('reportes')}
             />
           )}
 
@@ -241,8 +245,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeLanguageProvider>
+      <AuthProvider>
+        <SiataRealtimeProvider>
+          <AppContent />
+        </SiataRealtimeProvider>
+      </AuthProvider>
+    </ThemeLanguageProvider>
   );
 }

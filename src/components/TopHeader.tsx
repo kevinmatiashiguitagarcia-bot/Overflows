@@ -1,29 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
-import { ChevronDown, PhoneCall, Menu, X, User, Settings, LogOut, Trash2 } from 'lucide-react';
+import { ChevronDown, Menu, X, Home, MapPin, Waves } from 'lucide-react';
 import { CUENCAS_LIST } from '../data/cuencasData';
-import { UserDropdown } from './UserDropdown';
 
 interface TopHeaderProps {
   currentView: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion';
   onNavigate: (view: 'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion') => void;
   onSelectCuenca?: (cuencaId: string) => void;
   onOpenSidebarToggle?: () => void;
-  onOpenDeleteVerification: () => void;
+  onOpenDeleteVerification?: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   currentView,
   onNavigate,
-  onSelectCuenca,
-  onOpenSidebarToggle,
-  onOpenDeleteVerification
+  onOpenSidebarToggle
 }) => {
-  const { currentUser, logout } = useAuth();
-  const isAdmin = currentUser?.role === 'administrador';
-  const [quebradasOpen, setQuebradasOpen] = useState(false);
+  const { currentUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Derive user's residential quebrada ID
+  const userCuencaId = React.useMemo(() => {
+    if (!currentUser?.barrioSector) return 'altavista';
+    const s = currentUser.barrioSector.toLowerCase();
+    if (s.includes('aguas frías') || s.includes('aguas frias') || s.includes('morro plan') || s.includes('picacha') || s.includes('brisas')) return 'la-picacha';
+    if (s.includes('esperanza') || s.includes('chispero') || s.includes('cañada')) return 'la-canada';
+    if (s.includes('morro') || s.includes('corazón') || s.includes('corazon') || s.includes('buenavista') || s.includes('san judas')) return 'buenavista';
+    if (s.includes('manzanillo') || s.includes('jardín') || s.includes('jardin') || s.includes('guayabala')) return 'la-guayabala';
+    return 'altavista';
+  }, [currentUser?.barrioSector]);
+
+  const assignedCuenca = CUENCAS_LIST.find((c) => c.id === userCuencaId) || CUENCAS_LIST[0];
+  const assignedCuencaName = assignedCuenca.name.split('/')[0].trim();
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs transition-colors">
@@ -48,65 +57,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </button>
         </div>
 
-        {/* Center/Right Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1 sm:gap-2">
-          {/* Inicio Link */}
+        {/* Center/Right Desktop Navigation: Strictly isolated to assigned quebrada */}
+        <nav className="hidden md:flex items-center gap-2.5">
           <button
             onClick={() => onNavigate('inicio')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border cursor-pointer ${
               currentView === 'inicio'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
             }`}
+            title={`Monitoreo exclusivo de Quebrada ${assignedCuencaName} (${currentUser?.barrioSector || 'Sector Residencial'})`}
           >
-            <span>{isAdmin ? 'Supervisión Cuencas' : 'Mi Quebrada'}</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <Waves className="w-4 h-4 text-emerald-500" />
+            <span className="text-slate-400 font-normal text-xs">Quebrada asignada:</span>
+            <span>{assignedCuencaName}</span>
           </button>
-
-          {/* Quebradas Dropdown - STRICTLY FOR ADMINISTRATORS ONLY */}
-          {isAdmin && (
-            <div className="relative">
-              <button
-                onClick={() => setQuebradasOpen(!quebradasOpen)}
-                onBlur={() => setTimeout(() => setQuebradasOpen(false), 200)}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100 border border-indigo-200/80 transition-colors cursor-pointer"
-                title="Supervisión integral de cuencas (Exclusivo Administrador)"
-              >
-                <span>Cuencas (Admin)</span>
-                <ChevronDown className="w-3.5 h-3.5 text-indigo-600" />
-              </button>
-
-              {quebradasOpen && (
-                <div className="absolute left-0 mt-1 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center justify-between">
-                    <span>Quebradas Comuna 70</span>
-                    <span className="bg-indigo-100 px-1.5 py-0.5 rounded text-[9px]">Admin</span>
-                  </div>
-                  {CUENCAS_LIST.map((cuenca) => (
-                    <button
-                      key={cuenca.id}
-                      onClick={() => {
-                        if (onSelectCuenca) onSelectCuenca(cuenca.id);
-                        setQuebradasOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between cursor-pointer"
-                    >
-                      <span className="font-semibold text-slate-900">{cuenca.name}</span>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          cuenca.status === 'seguro'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {cuenca.capacityPercentage}%
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Mapa de Riesgo en Vivo Button */}
           <button
@@ -117,7 +82,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            Mapa de Riesgo SIATA
+            Mapa de Riesgo en Vivo
           </button>
 
           {/* Live System Indicator */}
@@ -149,7 +114,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             }}
             className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:bg-slate-100 flex items-center justify-between"
           >
-            <span>{isAdmin ? 'Supervisión de Quebradas (Admin)' : 'Mi Quebrada Asignada'}</span>
+            <span>Mi Quebrada Asignada ({assignedCuencaName})</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
           </button>
 
@@ -160,92 +125,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             }}
             className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold bg-[#8B0000] text-white"
           >
-            Mapa de Riesgo SIATA
+            Mapa de Riesgo en Vivo
           </button>
-
-          {/* User section in mobile */}
-          <div className="pt-2 border-t border-slate-200">
-            {currentUser ? (
-              <div className="space-y-1">
-                <div className="px-3 py-2 bg-slate-50 rounded-xl text-xs font-bold text-slate-900">
-                  <div className="flex items-center justify-between">
-                    <span>{currentUser.name}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
-                      {isAdmin ? 'Administrador' : 'Habitante'}
-                    </span>
-                  </div>
-                  <span className="block text-[10px] text-slate-500 font-normal">
-                    {currentUser.barrioSector}
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => {
-                    onNavigate('perfil');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-800 hover:bg-slate-100 font-semibold text-xs text-left"
-                >
-                  <User className="w-4 h-4 text-slate-600" />
-                  <span>Ver Perfil</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('configuracion');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-800 hover:bg-slate-100 font-semibold text-xs text-left"
-                >
-                  <Settings className="w-4 h-4 text-slate-600" />
-                  <span>Configuración</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-100 font-semibold text-xs text-left"
-                >
-                  <LogOut className="w-4 h-4 text-slate-500" />
-                  <span>Cerrar Sesión</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenDeleteVerification();
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-700 hover:bg-rose-50 font-semibold text-xs text-left"
-                >
-                  <Trash2 className="w-4 h-4 text-rose-600" />
-                  <span>Eliminar Cuenta</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => {
-                    onNavigate('auth');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full py-2.5 text-center text-xs font-bold border border-slate-200 rounded-xl hover:bg-slate-50"
-                >
-                  Iniciar Sesión
-                </button>
-                <button
-                  onClick={() => {
-                    onNavigate('auth');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full py-2.5 text-center text-xs font-bold text-white bg-[#8B0000] rounded-xl hover:bg-[#720000]"
-                >
-                  Crear Cuenta
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       )}
     </header>
