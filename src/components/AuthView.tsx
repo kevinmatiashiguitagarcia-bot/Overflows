@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
 import { SECTORS_LIST } from '../data/cuencasData';
 import { DataPrivacyModal } from './DataPrivacyModal';
+import { EmailInboxModal } from './EmailInboxModal';
+import { maskEmail } from '../services/emailService';
 import {
   ShieldCheck,
   Eye,
@@ -21,7 +23,9 @@ import {
   KeyRound,
   RefreshCw,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  Inbox,
+  ShieldAlert
 } from 'lucide-react';
 
 interface AuthViewProps {
@@ -42,9 +46,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [generatedCodeNotice, setGeneratedCodeNotice] = useState<string | null>(null);
+  const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoverySuccess, setRecoverySuccess] = useState<string | null>(null);
+
+  // Cooldown timer for resending recovery code
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Login form fields
   const [identifier, setIdentifier] = useState('');
@@ -125,8 +139,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
   };
 
   // Password Recovery Handlers
-  const handleRequestCode = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRequestCode = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setRecoveryError(null);
     setRecoverySuccess(null);
 
@@ -139,10 +153,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     if (!res.success) {
       setRecoveryError(res.error || 'Error al solicitar el código.');
     } else {
-      setGeneratedCodeNotice(res.code || null);
-      setRecoverySuccess(`Código de verificación enviado. Ingrésalo a continuación.`);
+      setRecoverySuccess(
+        `Código enviado exitosamente a ${maskEmail(recoveryEmail)}. Por favor revisa tu bandeja de entrada o spam.`
+      );
+      setResendCooldown(60);
       setRecoveryStep(2);
     }
+  };
+
+  const handleResendCode = () => {
+    if (resendCooldown > 0) return;
+    handleRequestCode();
   };
 
   const handleVerifyCode = (e: React.FormEvent) => {
@@ -186,7 +207,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
       setRecoveryCode('');
       setNewPassword('');
       setConfirmNewPassword('');
-      setGeneratedCodeNotice(null);
     }
   };
 
@@ -321,34 +341,80 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
             {/* STEP 2: Código de Verificación */}
             {recoveryStep === 2 && (
               <form onSubmit={handleVerifyCode} className="space-y-4">
-                {generatedCodeNotice && (
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                    <p className="font-bold flex items-center gap-1.5 mb-1">
-                      <KeyRound className="w-4 h-4 text-amber-700" />
-                      Código de Validación Generado:
-                    </p>
-                    <p className="text-base font-mono font-extrabold tracking-widest text-[#8B0000]">
-                      {generatedCodeNotice}
-                    </p>
-                    <p className="text-[11px] text-amber-800/80 mt-1">
-                      (Válido durante 15 minutos para la cuenta {recoveryEmail})
-                    </p>
+                {/* Security Confirmation: Code sent to email, NOT shown on screen */}
+                <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-sky-950 space-y-2.5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-sky-700 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-extrabold text-xs sm:text-sm text-sky-950">
+                        Código enviado a tu correo electrónico
+                      </p>
+                      <p className="text-xs text-sky-900/90 mt-1 leading-relaxed">
+                        Hemos despachado un código confidencial de 6 dígitos a{' '}
+                        <strong className="font-mono text-slate-900 font-bold bg-white/80 px-1.5 py-0.5 rounded border border-sky-300">
+                          {maskEmail(recoveryEmail)}
+                        </strong>
+                        . Revisa tu bandeja de entrada o la carpeta de correo no deseado (spam).
+                      </p>
+                    </div>
                   </div>
-                )}
+
+                  <div className="flex items-center gap-1.5 text-[11px] text-sky-800 bg-sky-100/70 p-2 rounded-xl border border-sky-200/80">
+                    <ShieldCheck className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+                    <span>
+                      Por seguridad y privacidad, <strong>el código no se muestra en esta pantalla</strong>.
+                    </span>
+                  </div>
+
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-sky-200/60">
+                    <button
+                      type="button"
+                      onClick={handleResendCode}
+                      disabled={resendCooldown > 0}
+                      className={`text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                        resendCooldown > 0
+                          ? 'text-slate-400 cursor-not-allowed'
+                          : 'text-sky-800 hover:text-sky-950 hover:underline'
+                      }`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${resendCooldown > 0 ? 'animate-spin' : ''}`} />
+                      <span>
+                        {resendCooldown > 0
+                          ? `Reenviar código en ${resendCooldown}s`
+                          : '¿No te llegó el correo? Reenviar código'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsInboxModalOpen(true)}
+                      className="text-xs font-bold text-[#8B0000] hover:text-[#720000] hover:underline flex items-center gap-1 cursor-pointer ml-auto"
+                    >
+                      <Inbox className="w-3.5 h-3.5" />
+                      <span>Abrir buzón de correo ({maskEmail(recoveryEmail)})</span>
+                    </button>
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Ingresa el código de 6 dígitos
+                    Ingresa el código numérico de 6 dígitos
                   </label>
                   <input
                     type="text"
                     maxLength={6}
                     value={recoveryCode}
                     onChange={(e) => setRecoveryCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="123456"
+                    placeholder="••••••"
                     required
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-center font-mono text-xl tracking-widest font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:ring-2 focus:ring-[#8B0000] focus:outline-hidden"
+                    autoFocus
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-center font-mono text-2xl tracking-widest font-black text-slate-900 placeholder-slate-300 focus:bg-white focus:ring-2 focus:ring-[#8B0000] focus:outline-hidden"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                    El código expira en 15 minutos a partir de su emisión.
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
@@ -361,7 +427,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    disabled={recoveryCode.length !== 6}
+                    className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-all ${
+                      recoveryCode.length === 6
+                        ? 'bg-[#8B0000] hover:bg-[#720000] text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
                   >
                     <span>Validar Código</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -760,6 +831,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
       <DataPrivacyModal
         isOpen={isPrivacyModalOpen}
         onClose={() => setIsPrivacyModalOpen(false)}
+      />
+
+      {/* Email Inbox Modal */}
+      <EmailInboxModal
+        isOpen={isInboxModalOpen}
+        onClose={() => setIsInboxModalOpen(false)}
+        targetEmail={recoveryEmail}
+        onApplyCode={(code) => setRecoveryCode(code)}
       />
     </div>
   );

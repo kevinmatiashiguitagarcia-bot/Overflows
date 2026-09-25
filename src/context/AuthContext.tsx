@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserAccount, UserRole } from '../types';
+import { sendPasswordResetEmail } from '../services/emailService';
 
 interface RegisterPayload {
   name: string;
@@ -24,7 +25,7 @@ interface AuthContextType {
     updates: { email?: string; phone?: string }
   ) => { success: boolean; message: string; error?: string };
   toggleUserRole: (userId: string) => void;
-  requestPasswordReset: (email: string) => { success: boolean; code?: string; error?: string };
+  requestPasswordReset: (email: string) => { success: boolean; error?: string };
   resetPassword: (email: string, code: string, newPassword: string) => { success: boolean; error?: string };
 }
 
@@ -333,7 +334,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [activeResetCodes, setActiveResetCodes] = useState<Record<string, { code: string; expiresAt: number }>>({});
 
-  const requestPasswordReset = (email: string): { success: boolean; code?: string; error?: string } => {
+  const requestPasswordReset = (email: string): { success: boolean; error?: string } => {
     const cleanEmail = email.trim().toLowerCase();
     const user = usersRegistry.find((u) => u.email.toLowerCase() === cleanEmail);
 
@@ -344,7 +345,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // Generate secure 6-digit code
+    // Generate secure 6-digit verification code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes validity
 
@@ -353,9 +354,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       [cleanEmail]: { code, expiresAt }
     }));
 
+    // Send the verification code directly to the user's email address
+    sendPasswordResetEmail(cleanEmail, user.name, code);
+
+    // Security compliance: Do NOT return the code to the UI
     return {
-      success: true,
-      code
+      success: true
     };
   };
 

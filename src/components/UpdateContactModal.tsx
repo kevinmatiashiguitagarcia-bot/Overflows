@@ -14,6 +14,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { maskEmail, sendPasswordResetEmail } from '../services/emailService';
 
 interface UpdateContactModalProps {
   isOpen: boolean;
@@ -100,9 +101,10 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
       return;
     }
 
-    // Refresh OTP Code
+    // Refresh and dispatch OTP Code to new email
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedCode(code);
+    sendPasswordResetEmail(trimmedEmail, currentUser.name, code);
     setIsSubmitting(false);
     setStep(2);
   };
@@ -300,31 +302,27 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
             </form>
           ) : (
             <form onSubmit={handleStep2Submit} className="space-y-4">
-              {/* Security OTP Simulation Banner */}
-              <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-950 space-y-2">
+              {/* Security Confirmation: Code sent to email, NOT shown on screen */}
+              <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-950 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-black text-xs text-indigo-900">
                     <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                    <span>Código de Verificación Emitido</span>
+                    <span>Código de Verificación Enviado</span>
                   </div>
                   <span className="text-[10px] font-mono bg-indigo-200/70 text-indigo-900 px-2 py-0.5 rounded-md font-bold">
-                    Válido por 10 min
+                    Válido por 15 min
                   </span>
                 </div>
-                <p className="text-xs text-indigo-800">
-                  Para confirmar el traspaso seguro de alertas hacia tu nuevo correo/celular, digita el código de 6 dígitos:
+                <p className="text-xs text-indigo-800 leading-relaxed">
+                  Para confirmar el traspaso seguro de alertas, hemos despachado un código confidencial de 6 dígitos a{' '}
+                  <strong className="font-mono text-indigo-950 font-bold bg-white/80 px-1.5 py-0.5 rounded border border-indigo-200">
+                    {maskEmail(newEmail)}
+                  </strong>
+                  . Revisa tu bandeja de entrada o spam.
                 </p>
-                <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-indigo-300">
-                  <span className="font-mono font-black text-lg tracking-widest text-indigo-950">
-                    {generatedCode}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setInputCode(generatedCode)}
-                    className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 hover:underline cursor-pointer"
-                  >
-                    Copiar código
-                  </button>
+                <div className="p-2 bg-indigo-100/70 rounded-xl text-[11px] text-indigo-900 font-medium flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                  <span>Por seguridad institucional, <strong>el código no se muestra en esta pantalla</strong>.</span>
                 </div>
               </div>
 
