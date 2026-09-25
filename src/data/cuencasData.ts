@@ -170,6 +170,27 @@ export const CUENCAS_LIST: CuencaData[] = [
     historyPoints: [45, 48, 52, 56, 58, 60, 62]
   },
   {
+    id: 'la-manea',
+    name: 'Quebrada La Manea / Las Violetas',
+    sector: 'Las Violetas · Cañada Alta · Belén Rincón',
+    capacityPercentage: 35,
+    status: 'seguro',
+    siataStationName: 'Estación Hidrométrica SIATA #320 - Las Violetas',
+    siataStationId: 'SIATA-H320',
+    rainIntensityMmH: 14.5,
+    flowRate: 1.3,
+    speed: 0.9,
+    trend: 'estable',
+    currentLevel: 0.75,
+    maxThreshold: 2.10,
+    margin: 135,
+    lastReadingTime: 'Hace 2 min',
+    communityStatus: 'Flujo despejado sin obstrucciones ni sedimentos en la cañada natural de Las Violetas.',
+    description: 'Corredor hidrográfico entre Altavista y Belén Las Violetas. Fluye estrictamente por la depresión topográfica y cañadas naturales entre los cerros, cruzando bajo las vías mediante pontones y obras de drenaje.',
+    criticalPoints: ['Cabecera Cañada Las Violetas', 'Pontón Vial Las Violetas', 'Depresión Central', 'Colector hacia Belén'],
+    historyPoints: [28, 30, 32, 34, 35, 35, 35]
+  },
+  {
     id: 'red-comuna-70',
     name: 'Red Completa Comuna 70',
     sector: '9 Veredas Oficiales de Altavista',
@@ -205,6 +226,7 @@ export const SECTORS_LIST = [
   'Vereda San José del Manzanillo',
   'Vereda El Jardín',
   'Sector Ladrilleras San Judas',
+  'Sector Las Violetas / Q. La Manea',
   'Puente Las Brisas (Calle 30)',
   'Puente Peatonal La Esperanza (Calle 18A)',
   'Sector Morro Plan'

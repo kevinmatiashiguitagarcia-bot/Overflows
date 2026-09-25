@@ -465,6 +465,11 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
                 Puntos Seguros
               </span>
             </div>
+
+            <div className="mt-2 pt-1.5 border-t border-slate-100 text-[9.5px] text-slate-500 flex items-center gap-1">
+              <span className="text-emerald-700 font-bold">✓ SIG Topología Real:</span>
+              <span>Alineado a cañadas naturales y pasos bajo pontón</span>
+            </div>
           </div>
         ) : (
           <button

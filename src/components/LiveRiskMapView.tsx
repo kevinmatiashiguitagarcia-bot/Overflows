@@ -54,6 +54,9 @@ export function getUserSectorCoordinates(sectorName?: string): { cuencaId: strin
   if (lower.includes('brisas')) {
     return { cuencaId: 'la-picacha', x: 440, y: 360, label: 'Puente Las Brisas (Calle 30)' };
   }
+  if (lower.includes('manea') || lower.includes('violetas')) {
+    return { cuencaId: 'la-manea', x: 380, y: 250, label: 'Sector Las Violetas / Q. La Manea' };
+  }
   if (lower.includes('esperanza') || lower.includes('chispero')) {
     return { cuencaId: 'la-canada', x: 380, y: 310, label: 'Vereda La Esperanza / El Chispero' };
   }
