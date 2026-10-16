@@ -5,8 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ThemeLanguageProvider } from './context/ThemeLanguageContext';
-import { SiataRealtimeProvider } from './context/SiataRealtimeContext';
+import { ThemeLanguageProvider, useThemeLanguage } from './context/ThemeLanguageContext';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { BannerAlert } from './components/BannerAlert';
@@ -18,24 +17,19 @@ import { CuencaDetailModal } from './components/CuencaDetailModal';
 import { RecomendacionesModal } from './components/RecomendacionesModal';
 import { ReportModal } from './components/ReportModal';
 import { ProfileView } from './components/ProfileView';
-import { SettingsView } from './components/SettingsView';
 import { DeleteVerificationModal } from './components/DeleteVerificationModal';
 import { DataPrivacyModal } from './components/DataPrivacyModal';
 import { CitizenReportsView } from './components/CitizenReportsView';
 import { CuencaData } from './types';
 import { CUENCAS_LIST } from './data/cuencasData';
 import {
-  PhoneCall,
-  AlertTriangle,
-  Radio,
-  CheckCircle2,
-  BellRing,
-  ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 
 function AppContent() {
   const { currentUser } = useAuth();
+  const { t } = useThemeLanguage();
   // Al iniciar sesión, la vista principal es directamente el mapa centrado en su sector
   const [currentView, setCurrentView] = useState<'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion' | 'reportes'>('mapa');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -45,7 +39,7 @@ function AppContent() {
   const deriveUserCuenca = (sector?: string) => {
     if (!sector) return 'altavista';
     const s = sector.toLowerCase();
-    if (s.includes('aguas frías') || s.includes('morro plan') || s.includes('picacha')) return 'la-picacha';
+    if (s.includes('aguas frías') || s.includes('aguas frias') || s.includes('morro plan') || s.includes('picacha')) return 'la-picacha';
     if (s.includes('esperanza') || s.includes('chispero') || s.includes('cañada')) return 'la-canada';
     if (s.includes('morro') || s.includes('corazón') || s.includes('buenavista')) return 'buenavista';
     if (s.includes('manzanillo') || s.includes('jardín') || s.includes('guayabala')) return 'la-guayabala';
@@ -83,19 +77,19 @@ function AppContent() {
   // Exclusividad para usuarios que inicien sesión: si no hay sesión iniciada, solo se muestra el acceso/registro
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900">
-        <header className="w-full bg-white border-b border-slate-200 py-3.5 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-2xs">
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900 transition-colors">
+        <header className="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-3.5 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 shadow-2xs transition-colors">
           <div className="flex items-center gap-3">
             <Logo size="md" showText={true} />
-            <span className="hidden sm:inline-block h-4 w-px bg-slate-300"></span>
-            <span className="hidden sm:inline-block text-xs font-bold text-slate-500">
-              Sistema Comunitario de Alerta Temprana · Comuna 70
+            <span className="hidden sm:inline-block h-4 w-px bg-slate-300 dark:bg-slate-700"></span>
+            <span className="hidden sm:inline-block text-xs font-bold text-slate-500 dark:text-slate-400">
+              {t('app.subtitle')}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#8B0000]" />
-              <span>Acceso Protegido</span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#8B0000] dark:text-red-400" />
+              <span>{t('app.protected_access')}</span>
             </span>
           </div>
         </header>
@@ -106,15 +100,15 @@ function AppContent() {
           </div>
         </main>
 
-        <footer className="py-4 text-center text-xs text-slate-400 border-t border-slate-200/80 bg-white/70">
-          Corregimiento de Altavista · Comuna 70 · Medellín, Antioquia
+        <footer className="py-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 transition-colors">
+          {t('app.location')}
         </footer>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] text-slate-900 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900">
+    <div className="min-h-screen bg-[#f3f4f6] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-red-100 selection:text-red-900 transition-colors">
       {/* 1. FIXED LATERAL NAVIGATION SIDEBAR */}
       <Sidebar
         currentView={currentView}
@@ -132,7 +126,7 @@ function AppContent() {
           sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'
         }`}
       >
-        {/* Top Header */}
+        {/* Top Header - No Profile on the Top Right */}
         <TopHeader
           currentView={currentView}
           onNavigate={(view) => setCurrentView(view)}
@@ -141,7 +135,7 @@ function AppContent() {
           onOpenDeleteVerification={() => setDeleteModalOpen(true)}
         />
 
-        {/* Emergency Alert Banner */}
+        {/* Emergency Alert Banner (Peaceful normal conditions, fluid timer) */}
         <BannerAlert
           onOpenRecommendations={() => setRecommendationsModalOpen(true)}
         />
@@ -150,13 +144,11 @@ function AppContent() {
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {currentView === 'inicio' && (
             <DashboardView
-              selectedCuencaId={selectedCuencaId}
               onNavigateToMap={(cuencaId) => {
                 if (cuencaId) setSelectedCuencaId(cuencaId);
                 setCurrentView('mapa');
               }}
               onOpenCuencaModal={(cuenca) => setSelectedCuencaForModal(cuenca)}
-              onNavigateToReports={() => setCurrentView('reportes')}
             />
           )}
 
@@ -169,15 +161,7 @@ function AppContent() {
 
           {currentView === 'perfil' && (
             <ProfileView
-              onBackToDashboard={() => setCurrentView('inicio')}
-              onOpenDeleteVerification={() => setDeleteModalOpen(true)}
-              onOpenPrivacyPolicy={() => setPrivacyModalOpen(true)}
-            />
-          )}
-
-          {currentView === 'configuracion' && (
-            <SettingsView
-              onBackToDashboard={() => setCurrentView('inicio')}
+              onBackToDashboard={() => setCurrentView('mapa')}
               onOpenDeleteVerification={() => setDeleteModalOpen(true)}
               onOpenPrivacyPolicy={() => setPrivacyModalOpen(true)}
             />
@@ -188,7 +172,7 @@ function AppContent() {
           )}
 
           {currentView === 'auth' && (
-            <AuthView onSuccessRedirect={() => setCurrentView('inicio')} />
+            <AuthView onSuccessRedirect={() => setCurrentView('mapa')} />
           )}
         </main>
       </div>
@@ -230,7 +214,7 @@ function AppContent() {
         onClose={() => setDeleteModalOpen(false)}
         onDeleted={(msg) => {
           showToast(msg);
-          setCurrentView('inicio');
+          setCurrentView('mapa');
         }}
       />
 
@@ -247,9 +231,7 @@ export default function App() {
   return (
     <ThemeLanguageProvider>
       <AuthProvider>
-        <SiataRealtimeProvider>
-          <AppContent />
-        </SiataRealtimeProvider>
+        <AppContent />
       </AuthProvider>
     </ThemeLanguageProvider>
   );

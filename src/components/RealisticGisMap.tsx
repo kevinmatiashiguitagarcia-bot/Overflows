@@ -21,20 +21,27 @@ import {
   Info,
   Waves,
   Navigation,
-  Mountain,
   X
 } from 'lucide-react';
+
+export interface MapActiveLayers {
+  inundacion: boolean;
+  evacuacion: boolean;
+  sensores: boolean;
+}
 
 interface RealisticGisMapProps {
   quebradaId: string;
   isAdmin: boolean;
   userSectorName?: string;
+  activeLayers?: MapActiveLayers;
 }
 
 export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
   quebradaId,
   isAdmin,
-  userSectorName
+  userSectorName,
+  activeLayers = { inundacion: true, evacuacion: true, sensores: true }
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -42,7 +49,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
   const baseTileLayerRef = useRef<L.TileLayer | null>(null);
   const labelsTileLayerRef = useRef<L.TileLayer | null>(null);
 
-  const [mapStyle, setMapStyle] = useState<'estandar' | 'relieve' | 'satelite'>('estandar');
+  const [mapStyle, setMapStyle] = useState<'estandar' | 'satelite'>('estandar');
   const [selectedSensor, setSelectedSensor] = useState<GisSensorPoint | null>(null);
   const [selectedEvacPoint, setSelectedEvacPoint] = useState<GisEvacuationPoint | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<GisRiskSegment | null>(null);
@@ -77,12 +84,12 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
     // Add custom zoom control at bottom right
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Initial base tile layer (OpenStreetMap Standard: clean, free, no API key required)
+    // Initial base tile layer (CartoDB Voyager: Google Maps style vector raster)
     const standardTiles = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
       {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        subdomains: ['a', 'b', 'c'],
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
         maxZoom: 19
       }
     ).addTo(map);
@@ -127,43 +134,33 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
     }
 
     if (mapStyle === 'estandar') {
-      // Clean, unrestricted OpenStreetMap Standard layer with streets, barrios and quebradas
+      // Crisp Google Maps / Urban Road Map style with street names & building blocks
       const standardTiles = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          subdomains: ['a', 'b', 'c'],
+          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+          subdomains: 'abcd',
           maxZoom: 19
         }
       ).addTo(map);
       baseTileLayerRef.current = standardTiles;
-    } else if (mapStyle === 'relieve') {
-      // Orographic Relief Map with Mountain Contours & Altavista Topography
-      const topoTiles = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-        {
-          attribution: 'Tiles &copy; Esri &mdash; Topografía y Curvas de Nivel',
-          maxZoom: 18
-        }
-      ).addTo(map);
-      baseTileLayerRef.current = topoTiles;
     } else {
       // Photorealistic Aerial Satellite Imagery from Esri World Imagery
       const satelliteTiles = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
-          attribution: 'Tiles &copy; Esri World Imagery',
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
           maxZoom: 18
         }
       ).addTo(map);
       baseTileLayerRef.current = satelliteTiles;
 
-      // Overlay transparent street and place labels from Esri Reference (no API key, no watermark)
+      // Overlay transparent street labels so roads remain crystal clear
       const labelsTiles = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
         {
-          attribution: 'Labels &copy; Esri',
-          maxZoom: 18,
+          subdomains: 'abcd',
+          maxZoom: 19,
           pane: 'overlayPane',
           opacity: 0.95
         }
@@ -182,7 +179,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
     group.clearLayers();
 
     // 1. Render Flood Risk Buffer Zone (Zona de Retiro y Amenaza de Inundación)
-    if (data.bufferZone && data.bufferZone.length > 0) {
+    if (activeLayers.inundacion && data.bufferZone && data.bufferZone.length > 0) {
       const bufferPolygon = L.polygon(data.bufferZone, {
         color: '#dc2626',
         weight: 1.5,
@@ -233,79 +230,83 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
     });
 
     // 3. Render SIATA Sensor Stations
-    data.sensors.forEach((sensor) => {
-      const isCritical = sensor.status === 'alerta_naranja' || sensor.status === 'alerta_roja';
-      const isModerate = sensor.status === 'alerta_amarilla';
-      const markerColor = isCritical ? '#ef4444' : isModerate ? '#eab308' : '#10b981';
+    if (activeLayers.sensores) {
+      data.sensors.forEach((sensor) => {
+        const isCritical = sensor.status === 'alerta_naranja' || sensor.status === 'alerta_roja';
+        const isModerate = sensor.status === 'alerta_amarilla';
+        const markerColor = isCritical ? '#ef4444' : isModerate ? '#eab308' : '#10b981';
 
-      const sensorHtml = `
-        <div class="relative flex items-center justify-center cursor-pointer group">
-          <div class="absolute -inset-2 rounded-full opacity-75 animate-ping" style="background-color: ${markerColor};"></div>
-          <div class="relative w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white text-[11px] font-black" style="background-color: ${markerColor};">
-            ${sensor.capacityPercentage}%
+        const sensorHtml = `
+          <div class="relative flex items-center justify-center cursor-pointer group">
+            <div class="absolute -inset-2 rounded-full opacity-75 animate-ping" style="background-color: ${markerColor};"></div>
+            <div class="relative w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white text-[11px] font-black" style="background-color: ${markerColor};">
+              ${sensor.capacityPercentage}%
+            </div>
+            <div class="absolute -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-900/90 text-white text-[9px] font-bold border border-slate-700 shadow-xs pointer-events-none">
+              ${sensor.code}
+            </div>
           </div>
-          <div class="absolute -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-900/90 text-white text-[9px] font-bold border border-slate-700 shadow-xs pointer-events-none">
-            ${sensor.code}
-          </div>
-        </div>
-      `;
+        `;
 
-      const sensorIcon = L.divIcon({
-        className: 'custom-sensor-icon',
-        html: sensorHtml,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        const sensorIcon = L.divIcon({
+          className: 'custom-sensor-icon',
+          html: sensorHtml,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([sensor.lat, sensor.lng], { icon: sensorIcon }).addTo(group);
+
+        marker.on('click', () => {
+          setSelectedSensor(sensor);
+          setSelectedEvacPoint(null);
+          setSelectedSegment(null);
+        });
+
+        marker.bindTooltip(
+          `<strong>${sensor.name} (${sensor.code})</strong><br/>
+           <span style="font-size:11px;">Nivel: ${sensor.levelMeters.toFixed(2)} m · Capacidad: ${sensor.capacityPercentage}%</span>`,
+          { offset: [0, -16] }
+        );
       });
-
-      const marker = L.marker([sensor.lat, sensor.lng], { icon: sensorIcon }).addTo(group);
-
-      marker.on('click', () => {
-        setSelectedSensor(sensor);
-        setSelectedEvacPoint(null);
-        setSelectedSegment(null);
-      });
-
-      marker.bindTooltip(
-        `<strong>${sensor.name} (${sensor.code})</strong><br/>
-         <span style="font-size:11px;">Nivel: ${sensor.levelMeters.toFixed(2)} m · Capacidad: ${sensor.capacityPercentage}%</span>`,
-        { offset: [0, -16] }
-      );
-    });
+    }
 
     // 4. Render Evacuation Meeting Points
-    data.evacuationPoints.forEach((point) => {
-      const evacHtml = `
-        <div class="relative flex items-center justify-center cursor-pointer">
-          <div class="w-7 h-7 rounded-xl bg-emerald-600 border-2 border-white shadow-md flex items-center justify-center text-white">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
+    if (activeLayers.evacuacion) {
+      data.evacuationPoints.forEach((point) => {
+        const evacHtml = `
+          <div class="relative flex items-center justify-center cursor-pointer">
+            <div class="w-7 h-7 rounded-xl bg-emerald-600 border-2 border-white shadow-md flex items-center justify-center text-white">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div class="absolute -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-200 text-[9px] font-bold border border-emerald-800 shadow-xs pointer-events-none">
+              Punto Seguro
+            </div>
           </div>
-          <div class="absolute -bottom-5 whitespace-nowrap px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-200 text-[9px] font-bold border border-emerald-800 shadow-xs pointer-events-none">
-            Punto Seguro
-          </div>
-        </div>
-      `;
+        `;
 
-      const evacIcon = L.divIcon({
-        className: 'custom-evac-icon',
-        html: evacHtml,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
+        const evacIcon = L.divIcon({
+          className: 'custom-evac-icon',
+          html: evacHtml,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+
+        const marker = L.marker([point.lat, point.lng], { icon: evacIcon }).addTo(group);
+
+        marker.on('click', () => {
+          setSelectedEvacPoint(point);
+          setSelectedSensor(null);
+          setSelectedSegment(null);
+        });
+
+        marker.bindTooltip(`<strong>${point.name}</strong><br/>Capacidad: ${point.capacity} personas`, {
+          offset: [0, -14]
+        });
       });
-
-      const marker = L.marker([point.lat, point.lng], { icon: evacIcon }).addTo(group);
-
-      marker.on('click', () => {
-        setSelectedEvacPoint(point);
-        setSelectedSensor(null);
-        setSelectedSegment(null);
-      });
-
-      marker.bindTooltip(`<strong>${point.name}</strong><br/>Capacidad: ${point.capacity} personas`, {
-        offset: [0, -14]
-      });
-    });
+    }
 
     // 5. Render Real Geographic Landmarks (Puentes, Escuelas)
     data.landmarks.forEach((landmark) => {
@@ -336,7 +337,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
 
     // Fit map bounds cleanly
     map.fitBounds(data.bounds, { padding: [40, 40] });
-  }, [data]);
+  }, [data, activeLayers]);
 
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
@@ -349,7 +350,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
       {/* Realist Leaflet Map Container */}
       <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-      {/* Floating Header Toolbar: Estándar vs Relieve vs Satélite toggle */}
+      {/* Floating Header Toolbar: Estándar vs Satélite toggle */}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <div className="flex items-center p-1 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200">
           <button
@@ -362,21 +363,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
             }`}
           >
             <MapIcon className="w-3.5 h-3.5 text-blue-500" />
-            <span>Calles</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMapStyle('relieve')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              mapStyle === 'relieve'
-                ? 'bg-amber-700 text-white shadow-sm'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-            title="Curvas de nivel y relieve orográfico característico de Altavista"
-          >
-            <Mountain className="w-3.5 h-3.5 text-amber-500" />
-            <span>Relieve y Curvas</span>
+            <span>Modo Estándar (Calles)</span>
           </button>
 
           <button
@@ -389,7 +376,7 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
             }`}
           >
             <Globe className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Satélite</span>
+            <span>Modo Satélite (Aéreo)</span>
           </button>
         </div>
 
@@ -464,11 +451,6 @@ export const RealisticGisMap: React.FC<RealisticGisMapProps> = ({
                 <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block"></span>
                 Puntos Seguros
               </span>
-            </div>
-
-            <div className="mt-2 pt-1.5 border-t border-slate-100 text-[9.5px] text-slate-500 flex items-center gap-1">
-              <span className="text-emerald-700 font-bold">✓ SIG Topología Real:</span>
-              <span>Alineado a cañadas naturales y pasos bajo pontón</span>
             </div>
           </div>
         ) : (

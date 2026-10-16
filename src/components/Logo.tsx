@@ -34,7 +34,6 @@ export const Logo: React.FC<LogoProps> = ({
           src="/overflows_logo.jpg"
           alt="Overflows - Antes del riesgo, está Overflows"
           className="w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-300"
-          referrerPolicy="no-referrer"
           onError={(e) => {
             if (e.currentTarget.src !== '/overflows_logo.png') {
               e.currentTarget.src = '/overflows_logo.png';

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserAccount, UserRole } from '../types';
-import { sendPasswordResetEmail } from '../services/emailService';
 
 interface RegisterPayload {
   name: string;
@@ -16,8 +15,11 @@ interface AuthContextType {
   currentUser: UserAccount | null;
   usersRegistry: UserAccount[];
   login: (identifier: string, password: string) => { success: boolean; error?: string };
+  loginWithGoogle: (emailHint?: string, nameHint?: string) => Promise<{ success: boolean; user?: UserAccount; error?: string }>;
   register: (payload: RegisterPayload) => { success: boolean; error?: string };
   logout: () => void;
+  checkUserExists: (identifier: string) => { exists: boolean; maskedIdentifier?: string };
+  resetPassword: (identifier: string, newPassword: string) => { success: boolean; error?: string };
   verifyCurrentUserPassword: (password: string) => boolean;
   deleteAccount: (userId: string, passwordConfirm?: string) => { success: boolean; message: string; error?: string };
   updateUserContact: (
@@ -25,21 +27,18 @@ interface AuthContextType {
     updates: { email?: string; phone?: string }
   ) => { success: boolean; message: string; error?: string };
   toggleUserRole: (userId: string) => void;
-  requestPasswordReset: (email: string) => { success: boolean; error?: string };
-  resetPassword: (email: string, code: string, newPassword: string) => { success: boolean; error?: string };
 }
 
-const STORAGE_USERS_KEY = 'overflows_altavista_users_v3';
-const STORAGE_CURRENT_USER_KEY = 'overflows_altavista_current_user_v3';
+const STORAGE_USERS_KEY = 'overflows_altavista_users_v4';
+const STORAGE_CURRENT_USER_KEY = 'overflows_altavista_current_user_v4';
 
-// Seed initial users for convenience and demonstration
 const DEFAULT_USERS: (UserAccount & { passwordHash: string })[] = [
   {
     id: 'user-001',
     name: 'Don Hernando Ruiz',
     email: 'h.ruiz@overflowsaltavista.org',
     phone: '3124567890',
-    barrioSector: 'Sector San Pablo',
+    barrioSector: 'Vereda San Pablo (Calle 18)',
     createdAt: '2026-08-15T08:00:00Z',
     dataTreatmentAccepted: true,
     passwordHash: '123456',
@@ -85,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Fallback
     }
-    return DEFAULT_USERS[1];
+    return null;
   });
 
   // Sync users to localStorage
@@ -131,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!payload.dataTreatmentAccepted) {
       return {
         success: false,
-        error: 'Debes autorizar el tratamiento de datos personales conforme a la política y normativa digital vigente para registrarte.'
+        error: 'Debes autorizar el tratamiento de datos personales conforme a la Ley 1581 de 2012 para registrarte.'
       };
     }
 
@@ -142,7 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (existingByEmail) {
       return {
         success: false,
-        error: `Ya existe una cuenta registrada con el correo "${trimmedEmail}". No se puede volver a crear. Por favor inicia sesión.`
+        error: `Ya existe una cuenta registrada con el correo "${trimmedEmail}". Por favor inicia sesión.`
       };
     }
 
@@ -152,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (existingByPhone) {
       return {
         success: false,
-        error: `Ya existe una cuenta registrada con el número telefónico "${payload.phone}". No se puede volver a crear. Por favor inicia sesión.`
+        error: `Ya existe una cuenta registrada con el número telefónico "${payload.phone}". Por favor inicia sesión.`
       };
     }
 
@@ -164,7 +163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       barrioSector: payload.barrioSector || 'Sector Morro Plan',
       createdAt: new Date().toISOString(),
       dataTreatmentAccepted: true,
-      passwordHash: payload.password
+      passwordHash: payload.password,
+      role: payload.role || 'habitante'
     };
 
     setUsersRegistry((prev) => [...prev, newUser]);
@@ -213,6 +213,125 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
+  // Google Sign-In or Registration Flow
+  const loginWithGoogle = async (
+    emailHint?: string,
+    nameHint?: string
+  ): Promise<{ success: boolean; user?: UserAccount; error?: string }> => {
+    try {
+      const email = emailHint?.trim().toLowerCase() || 'kevinmatiashiguitagarcia@gmail.com';
+      const name = nameHint?.trim() || 'Kevin Matías Higüita García';
+
+      // Check if user already exists
+      let user = usersRegistry.find((u) => u.email.toLowerCase() === email);
+
+      if (!user) {
+        // Automatically create account for Google user with confirmed data policy
+        const newUser: UserAccount & { passwordHash: string } = {
+          id: `user-google-${Date.now()}`,
+          name: name,
+          email: email,
+          phone: '310' + Math.floor(1000000 + Math.random() * 9000000),
+          barrioSector: 'Vereda Aguas Frías',
+          createdAt: new Date().toISOString(),
+          dataTreatmentAccepted: true,
+          passwordHash: `google-auth-${Date.now()}`,
+          role: 'habitante'
+        };
+
+        setUsersRegistry((prev) => [...prev, newUser]);
+        user = newUser;
+      }
+
+      const { passwordHash, ...safeUser } = user;
+      setCurrentUser(safeUser);
+      return { success: true, user: safeUser };
+    } catch {
+      return {
+        success: false,
+        error: 'No fue posible completar la autenticación con Google. Intenta nuevamente.'
+      };
+    }
+  };
+
+  // Check if an identifier exists for password recovery
+  const checkUserExists = (identifier: string): { exists: boolean; maskedIdentifier?: string } => {
+    const rawTrimmed = identifier.trim();
+    const cleanIdPhone = normalizePhone(rawTrimmed);
+    const isLikelyEmail = rawTrimmed.includes('@');
+
+    const matchedUser = usersRegistry.find((u) => {
+      if (isLikelyEmail) {
+        return u.email.toLowerCase() === rawTrimmed.toLowerCase();
+      }
+      const uPhone = normalizePhone(u.phone);
+      return (
+        (cleanIdPhone.length >= 7 && uPhone === cleanIdPhone) ||
+        u.email.toLowerCase() === rawTrimmed.toLowerCase()
+      );
+    });
+
+    if (!matchedUser) {
+      return { exists: false };
+    }
+
+    // Mask identifier for security
+    let masked = matchedUser.email;
+    if (isLikelyEmail) {
+      const parts = matchedUser.email.split('@');
+      const prefix = parts[0];
+      const domain = parts[1] || '';
+      masked = `${prefix.substring(0, 2)}***@${domain}`;
+    } else {
+      const phone = matchedUser.phone;
+      masked = `***-***-${phone.slice(-4)}`;
+    }
+
+    return { exists: true, maskedIdentifier: masked };
+  };
+
+  // Reset password implementation
+  const resetPassword = (identifier: string, newPassword: string): { success: boolean; error?: string } => {
+    const rawTrimmed = identifier.trim();
+    const cleanIdPhone = normalizePhone(rawTrimmed);
+    const isLikelyEmail = rawTrimmed.includes('@');
+
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'La nueva contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    const index = usersRegistry.findIndex((u) => {
+      if (isLikelyEmail) {
+        return u.email.toLowerCase() === rawTrimmed.toLowerCase();
+      }
+      const uPhone = normalizePhone(u.phone);
+      return (
+        (cleanIdPhone.length >= 7 && uPhone === cleanIdPhone) ||
+        u.email.toLowerCase() === rawTrimmed.toLowerCase()
+      );
+    });
+
+    if (index === -1) {
+      return { success: false, error: 'No se encontró la cuenta para restablecer la contraseña.' };
+    }
+
+    const updatedUsers = [...usersRegistry];
+    updatedUsers[index] = {
+      ...updatedUsers[index],
+      passwordHash: newPassword
+    };
+
+    setUsersRegistry(updatedUsers);
+
+    // If current logged in user is the same, update
+    if (currentUser && currentUser.id === updatedUsers[index].id) {
+      const { passwordHash, ...safe } = updatedUsers[index];
+      setCurrentUser(safe);
+    }
+
+    return { success: true };
+  };
+
   const logout = () => {
     setCurrentUser(null);
   };
@@ -250,66 +369,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userId: string,
     updates: { email?: string; phone?: string }
   ): { success: boolean; message: string; error?: string } => {
-    const userToUpdate = usersRegistry.find((u) => u.id === userId);
-    if (!userToUpdate) {
+    const userIndex = usersRegistry.findIndex((u) => u.id === userId);
+    if (userIndex === -1) {
       return { success: false, message: 'Usuario no encontrado.', error: 'Usuario no encontrado' };
     }
 
+    const currentRecord = usersRegistry[userIndex];
+    let newEmail = currentRecord.email;
+    let newPhone = currentRecord.phone;
+
     if (updates.email) {
-      const trimmedEmail = updates.email.trim().toLowerCase();
-      const duplicateEmail = usersRegistry.find(
-        (u) => u.id !== userId && u.email.toLowerCase() === trimmedEmail
+      const cleanEmail = updates.email.trim().toLowerCase();
+      if (!cleanEmail.includes('@') || cleanEmail.length < 5) {
+        return { success: false, message: 'Correo electrónico inválido.', error: 'Formato de correo no válido' };
+      }
+      const existingEmail = usersRegistry.find(
+        (u) => u.id !== userId && u.email.toLowerCase() === cleanEmail
       );
-      if (duplicateEmail) {
+      if (existingEmail) {
         return {
           success: false,
-          message: `El correo "${trimmedEmail}" ya está registrado por otra cuenta en el sistema.`,
+          message: 'Este correo electrónico ya está en uso por otra cuenta.',
           error: 'Correo duplicado'
         };
       }
+      newEmail = cleanEmail;
     }
 
     if (updates.phone) {
       const cleanPhone = normalizePhone(updates.phone);
-      const duplicatePhone = usersRegistry.find(
-        (u) => u.id !== userId && normalizePhone(u.phone) === cleanPhone
-      );
-      if (duplicatePhone) {
+      if (cleanPhone.length < 7) {
         return {
           success: false,
-          message: `El teléfono "${updates.phone}" ya está registrado por otra cuenta en el sistema.`,
+          message: 'Número de celular o teléfono inválido.',
+          error: 'Formato de celular no válido'
+        };
+      }
+      const existingPhone = usersRegistry.find(
+        (u) => u.id !== userId && normalizePhone(u.phone) === cleanPhone
+      );
+      if (existingPhone) {
+        return {
+          success: false,
+          message: 'Este número de teléfono ya está en uso por otra cuenta.',
           error: 'Teléfono duplicado'
         };
       }
+      newPhone = cleanPhone;
     }
 
-    setUsersRegistry((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            ...(updates.email ? { email: updates.email.trim().toLowerCase() } : {}),
-            ...(updates.phone ? { phone: normalizePhone(updates.phone) } : {})
-          };
-        }
-        return u;
-      })
-    );
+    const updatedUser = {
+      ...currentRecord,
+      email: newEmail,
+      phone: newPhone
+    };
+
+    const updatedList = [...usersRegistry];
+    updatedList[userIndex] = updatedUser;
+    setUsersRegistry(updatedList);
 
     if (currentUser?.id === userId) {
-      setCurrentUser((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          ...(updates.email ? { email: updates.email.trim().toLowerCase() } : {}),
-          ...(updates.phone ? { phone: normalizePhone(updates.phone) } : {})
-        };
-      });
+      const { passwordHash, ...safeUser } = updatedUser;
+      setCurrentUser(safeUser);
     }
 
     return {
       success: true,
-      message: 'Los datos de contacto han sido actualizados y verificados de manera segura en el sistema.'
+      message: 'Información de contacto actualizada correctamente.'
     };
   };
 
@@ -323,6 +449,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return u;
       })
     );
+
     if (currentUser?.id === userId) {
       setCurrentUser((prev) => {
         if (!prev) return null;
@@ -332,99 +459,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const [activeResetCodes, setActiveResetCodes] = useState<Record<string, { code: string; expiresAt: number }>>({});
-
-  const requestPasswordReset = (email: string): { success: boolean; error?: string } => {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = usersRegistry.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (!user) {
-      return {
-        success: false,
-        error: 'No se encontró ninguna cuenta comunitaria registrada con este correo electrónico.'
-      };
-    }
-
-    // Generate secure 6-digit verification code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes validity
-
-    setActiveResetCodes((prev) => ({
-      ...prev,
-      [cleanEmail]: { code, expiresAt }
-    }));
-
-    // Send the verification code directly to the user's email address
-    sendPasswordResetEmail(cleanEmail, user.name, code);
-
-    // Security compliance: Do NOT return the code to the UI
-    return {
-      success: true
-    };
-  };
-
-  const resetPassword = (email: string, code: string, newPassword: string): { success: boolean; error?: string } => {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = usersRegistry.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (!user) {
-      return { success: false, error: 'Usuario no encontrado en el sistema.' };
-    }
-
-    const resetEntry = activeResetCodes[cleanEmail];
-    if (!resetEntry) {
-      return { success: false, error: 'No hay ninguna solicitud de recuperación activa para este correo.' };
-    }
-
-    if (Date.now() > resetEntry.expiresAt) {
-      return { success: false, error: 'El código de verificación ha expirado. Por favor solicita uno nuevo.' };
-    }
-
-    if (resetEntry.code !== code.trim()) {
-      return { success: false, error: 'El código de verificación de 6 dígitos ingresado es incorrecto.' };
-    }
-
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'La nueva contraseña debe tener como mínimo 6 caracteres.' };
-    }
-
-    // Update user password in registry
-    setUsersRegistry((prev) =>
-      prev.map((u) => {
-        if (u.id === user.id) {
-          return {
-            ...u,
-            passwordHash: newPassword
-          };
-        }
-        return u;
-      })
-    );
-
-    // Remove used code
-    setActiveResetCodes((prev) => {
-      const copy = { ...prev };
-      delete copy[cleanEmail];
-      return copy;
-    });
-
-    return { success: true };
-  };
-
   return (
     <AuthContext.Provider
       value={{
         currentUser,
         usersRegistry,
         login,
+        loginWithGoogle,
         register,
         logout,
+        checkUserExists,
+        resetPassword,
         verifyCurrentUserPassword,
         deleteAccount,
         updateUserContact,
-        toggleUserRole,
-        requestPasswordReset,
-        resetPassword
+        toggleUserRole
       }}
     >
       {children}
@@ -439,4 +488,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

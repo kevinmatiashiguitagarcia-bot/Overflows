@@ -9,13 +9,9 @@ import {
   FileText,
   Sliders,
   CheckCircle2,
-  Smartphone,
-  Sun,
-  Moon,
-  Globe
+  Smartphone
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useThemeLanguage } from '../context/ThemeLanguageContext';
 
 interface SettingsViewProps {
   onBackToDashboard: () => void;
@@ -29,7 +25,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenPrivacyPolicy
 }) => {
   const { currentUser } = useAuth();
-  const { theme, setTheme, language, setLanguage, t } = useThemeLanguage();
 
   // Settings states
   const [soundAlerts, setSoundAlerts] = useState<boolean>(true);
@@ -49,157 +44,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="flex items-center justify-between">
         <button
           onClick={onBackToDashboard}
-          className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs transition-colors cursor-pointer"
+          className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver al Monitoreo</span>
         </button>
 
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-          <Sliders className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <Sliders className="w-4 h-4 text-slate-600" />
           <span>Configuración del Sistema</span>
         </div>
       </div>
 
       {savedFeedback && (
-        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           <span>{savedFeedback}</span>
         </div>
       )}
 
-      {/* 1. Theme and Language Controls (Requirement 7) */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-6 transition-colors">
-        <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 shrink-0">
-            <Sliders className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              Apariencia e Idioma del Sistema
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Personaliza el tema visual y el idioma de la plataforma comunitaria
-            </p>
-          </div>
-        </div>
-
-        {/* Theme Selector: Modo Claro / Modo Oscuro */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-            Tema de Visualización
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setTheme('light');
-                setSavedFeedback('Modo Claro activado.');
-                setTimeout(() => setSavedFeedback(null), 2500);
-              }}
-              className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
-                theme === 'light'
-                  ? 'border-[#8B0000] bg-red-50/40 text-slate-900 ring-2 ring-[#8B0000]/20'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <div
-                className={`p-2 rounded-xl shrink-0 ${
-                  theme === 'light' ? 'bg-[#8B0000] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                }`}
-              >
-                <Sun className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Modo Claro</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Fondo blanco de alto contraste</p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setTheme('dark');
-                setSavedFeedback('Modo Oscuro activado.');
-                setTimeout(() => setSavedFeedback(null), 2500);
-              }}
-              className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
-                theme === 'dark'
-                  ? 'border-[#8B0000] bg-slate-950 text-white ring-2 ring-[#8B0000]/30'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <div
-                className={`p-2 rounded-xl shrink-0 ${
-                  theme === 'dark' ? 'bg-[#8B0000] text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                }`}
-              >
-                <Moon className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Modo Oscuro</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Protección visual nocturna</p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Language Selector: Español / English */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-            <Globe className="w-4 h-4 text-slate-500" />
-            <span>Idioma de la Interfaz</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setLanguage('es');
-                setSavedFeedback('Idioma configurado a Español.');
-                setTimeout(() => setSavedFeedback(null), 2500);
-              }}
-              className={`p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                language === 'es'
-                  ? 'border-[#8B0000] bg-red-50/40 text-slate-900 ring-2 ring-[#8B0000]/20'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
-              }`}
-            >
-              <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Español</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">Comuna 70 · Medellín</p>
-              </div>
-              {language === 'es' && (
-                <span className="w-2 h-2 rounded-full bg-[#8B0000]"></span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setLanguage('en');
-                setSavedFeedback('Language set to English.');
-                setTimeout(() => setSavedFeedback(null), 2500);
-              }}
-              className={`p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                language === 'en'
-                  ? 'border-[#8B0000] bg-red-50/40 text-slate-900 ring-2 ring-[#8B0000]/20'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
-              }`}
-            >
-              <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">English</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">International format</p>
-              </div>
-              {language === 'en' && (
-                <span className="w-2 h-2 rounded-full bg-[#8B0000]"></span>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Hydrological Alerts Configuration */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-5 transition-colors">
+      {/* 1. Hydrological Alerts Configuration */}
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-xs space-y-5">
         <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
           <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800 shrink-0">
             <Bell className="w-5 h-5" />
