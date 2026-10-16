@@ -1,46 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { CUENCAS_LIST, SECTORS_LIST } from '../data/cuencasData';
+import React, { useState, useId } from 'react';
+import { CUENCAS_LIST } from '../data/cuencasData';
 import { CuencaData } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import {
-  CitizenReportRecord,
-  getStoredReports,
-  createCitizenReport,
-  ReportMediaItem
-} from '../data/reportsService';
-import {
   Waves,
-  AlertTriangle,
-  Radio,
   MapPin,
-  CheckCircle2,
-  Send,
-  Activity,
+  TrendingDown,
   TrendingUp,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  Layers,
-  ShieldCheck,
-  Compass,
-  ArrowRight,
-  Camera,
-  Upload,
-  X
+  Activity,
+  Gauge
 } from 'lucide-react';
 
 interface DashboardProps {
-  onNavigateToMap: (cuencaId?: string) => void;
+  onNavigateToMap?: (cuencaId?: string) => void;
   onOpenCuencaModal?: (cuenca: CuencaData) => void;
 }
 
-export const DashboardView: React.FC<DashboardProps> = ({
-  onNavigateToMap
-}) => {
+export const DashboardView: React.FC<DashboardProps> = () => {
   const { currentUser } = useAuth();
   const { t, language } = useThemeLanguage();
-  const isAdmin = currentUser?.role === 'administrador';
+  const gradientId = useId();
+  const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
 
   // Compute user assigned cuenca ID based on sector
   const userAssignedCuencaId = React.useMemo(() => {
@@ -51,563 +32,310 @@ export const DashboardView: React.FC<DashboardProps> = ({
       if (s.includes('morro') || s.includes('corazón') || s.includes('corazon') || s.includes('buenavista') || s.includes('san judas')) return 'buenavista';
       if (s.includes('manzanillo') || s.includes('jardín') || s.includes('jardin') || s.includes('guayabala')) return 'la-guayabala';
     }
-    return 'altavista';
+    return 'la-picacha';
   }, [currentUser?.barrioSector]);
 
-  // Dynamic Quebrada/Sector Selection (Only admins can switch between all quebradas)
-  const [adminSelectedCuencaId, setAdminSelectedCuencaId] = useState<string>(userAssignedCuencaId);
-  const [showCompactList, setShowCompactList] = useState<boolean>(false);
+  // Dedicated cuenca record for this user
+  const activeCuenca = CUENCAS_LIST.find((c) => c.id === userAssignedCuencaId) || CUENCAS_LIST[0];
 
-  // Non-administrators are strictly locked to their assigned quebrada
-  const effectiveCuencaId = isAdmin ? adminSelectedCuencaId : userAssignedCuencaId;
+  // Simplified flow telemetry history points (meters)
+  const historyData = React.useMemo(() => {
+    const baseLevel = activeCuenca.currentLevel;
+    // 6 time steps: -50m, -40m, -30m, -20m, -10m, Ahora
+    const offsets = [-0.06, -0.04, -0.02, -0.01, +0.01, 0];
+    const timeLabels = language === 'en'
+      ? ['-50 min', '-40 min', '-30 min', '-20 min', '-10 min', 'Now']
+      : ['-50 min', '-40 min', '-30 min', '-20 min', '-10 min', 'Ahora'];
 
-  // Real citizen reports loaded from shared moderated storage (no mock opinions)
-  const [reportsList, setReportsList] = useState<CitizenReportRecord[]>(() => getStoredReports());
-
-  // Report form state in dashboard
-  const [reportLevel, setReportLevel] = useState<'bajo_muro' | 'al_puente' | 'desbordada'>('bajo_muro');
-  const [reportLocation, setReportLocation] = useState<string>(currentUser?.barrioSector || '');
-  const [reportNotes, setReportNotes] = useState<string>('');
-  const [reportAttachments, setReportAttachments] = useState<ReportMediaItem[]>([]);
-  const [reportSuccessMessage, setReportSuccessMessage] = useState<string | null>(null);
-  const [reportError, setReportError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Sync reports
-  useEffect(() => {
-    const handleSync = () => {
-      setReportsList(getStoredReports());
-    };
-    window.addEventListener('overflows_reports_updated', handleSync);
-    return () => window.removeEventListener('overflows_reports_updated', handleSync);
-  }, []);
-
-  // Sync with user's barrioSector if updated
-  useEffect(() => {
-    if (currentUser?.barrioSector) {
-      setReportLocation(currentUser.barrioSector);
-    }
-  }, [currentUser?.barrioSector]);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setReportError(null);
-    const newItems: ReportMediaItem[] = [];
-
-    (Array.from(files) as File[]).forEach((file: File) => {
-      const isVideo = file.type.startsWith('video');
-      const isImage = file.type.startsWith('image');
-      if (isImage || isVideo) {
-        newItems.push({
-          id: `file-dash-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          name: file.name,
-          type: isVideo ? 'video' : 'image',
-          url: URL.createObjectURL(file)
-        });
-      }
+    return offsets.map((offset, idx) => {
+      const level = Math.max(0.15, Number((baseLevel + offset).toFixed(2)));
+      return {
+        label: timeLabels[idx],
+        level,
+        percentage: Math.round((level / activeCuenca.maxThreshold) * 100)
+      };
     });
+  }, [activeCuenca.currentLevel, activeCuenca.maxThreshold, language]);
 
-    setReportAttachments((prev) => [...prev, ...newItems]);
-    e.target.value = '';
-  };
+  // Determine status visual attributes
+  const isAlert = activeCuenca.status === 'alerta_naranja' || activeCuenca.status === 'alerta_roja';
+  const isWatch = activeCuenca.status === 'alerta_amarilla';
 
-  const handleCitizenReportSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setReportError(null);
+  const statusLabel = isAlert
+    ? (language === 'en' ? 'Orange Alert' : 'Alerta Naranja')
+    : isWatch
+    ? (language === 'en' ? 'Yellow Alert' : 'Alerta Amarilla')
+    : (language === 'en' ? 'Safe / Normal Flow' : 'Caudal Seguro / Normal');
 
-    // Mandatory photo/video verification
-    if (reportAttachments.length === 0) {
-      setReportError(t('reports.media_required'));
-      return;
-    }
+  const statusColorClasses = isAlert
+    ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60'
+    : isWatch
+    ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/60'
+    : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/60';
 
-    if (!reportNotes.trim()) {
-      setReportError(t('reports.desc_label'));
-      return;
-    }
+  const dotColorClass = isAlert ? 'bg-rose-500' : isWatch ? 'bg-amber-500' : 'bg-emerald-500';
 
-    setIsSubmitting(true);
+  // SVG Chart Geometry
+  const svgWidth = 600;
+  const svgHeight = 180;
+  const paddingX = 40;
+  const paddingTop = 25;
+  const paddingBottom = 35;
 
-    setTimeout(() => {
-      createCitizenReport({
-        userName: currentUser?.name || 'Vecino Registrado',
-        userRole: currentUser?.role || 'habitante',
-        userEmail: currentUser?.email,
-        sector: reportLocation || currentUser?.barrioSector || 'Sector Residencial',
-        quebrada: activeCuenca.name,
-        level: reportLevel,
-        description: reportNotes,
-        media: reportAttachments
-      });
+  const chartWidth = svgWidth - paddingX * 2;
+  const chartHeight = svgHeight - paddingTop - paddingBottom;
 
-      setReportsList(getStoredReports());
-      setIsSubmitting(false);
-      setReportSuccessMessage(t('reports.pending_approval_notice'));
-      setReportNotes('');
-      setReportAttachments([]);
-      setTimeout(() => {
-        setReportSuccessMessage(null);
-      }, 7000);
-    }, 600);
-  };
+  const minLevel = 0;
+  const maxLevel = Math.max(activeCuenca.maxThreshold * 0.7, 1.5);
 
-  // Dedicated data for selected cuenca
-  const activeCuenca = CUENCAS_LIST.find((c) => c.id === effectiveCuencaId) || CUENCAS_LIST[0];
-  const isAllView = isAdmin && effectiveCuencaId === 'todas';
+  const getX = (index: number) => paddingX + (index / (historyData.length - 1)) * chartWidth;
+  const getY = (val: number) => paddingTop + chartHeight - ((val - minLevel) / (maxLevel - minLevel)) * chartHeight;
 
-  // Only approved reports appear in the community feed
-  const approvedReports = reportsList.filter((rep) => rep.status === 'aprobado');
+  // Build SVG path points
+  const points = historyData.map((d, i) => ({ x: getX(i), y: getY(d.level), ...d }));
+
+  // Smooth line path
+  const linePath = points.reduce((acc, p, i) => {
+    if (i === 0) return `M ${p.x} ${p.y}`;
+    const prev = points[i - 1];
+    const cp1x = prev.x + (p.x - prev.x) / 2;
+    const cp1y = prev.y;
+    const cp2x = prev.x + (p.x - prev.x) / 2;
+    const cp2y = p.y;
+    return `${acc} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p.x} ${p.y}`;
+  }, '');
+
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
+
+  const thresholdY = getY(activeCuenca.maxThreshold * 0.5);
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* 1. Header Toolbar (Admin Multi-cuenca vs Non-Admin Exclusive) */}
-      {isAdmin ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
-                  Panel de Supervisión Hidrológica Multicuenca
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800">
-                  Rol Administrador
-                </span>
-              </div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-0.5">
-                Control y Monitoreo General de Cuencas Comuna 70
-              </h2>
+    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+      {/* TARJETA PRINCIPAL: MI QUEBRADA */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-800 shadow-sm transition-colors">
+        
+        {/* Encabezado: Nombre de la Quebrada y Estado de Alerta */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Waves className="w-6 h-6 text-emerald-300" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>{t('status.normal') || 'Normalidad'}</span>
+
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                {t('nav.dashboard') || 'Mi Quebrada'}
               </span>
-            </div>
-          </div>
-
-          {/* Interactive Tabs / Buttons (Exclusively for Administrators) */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-            {CUENCAS_LIST.filter((c) => c.id !== 'red-comuna-70').map((cuenca) => {
-              const isSelected = cuenca.id === effectiveCuencaId;
-              return (
-                <button
-                  key={cuenca.id}
-                  onClick={() => setAdminSelectedCuencaId(cuenca.id)}
-                  className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-slate-900 dark:bg-slate-800 text-white shadow-md ring-2 ring-slate-900/20'
-                      : 'bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>Quebrada {cuenca.name.split('/')[0].trim()}</span>
-                  <span
-                    className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                      isSelected ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    {cuenca.capacityPercentage}%
-                  </span>
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => setAdminSelectedCuencaId('todas')}
-              className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer ${
-                isAllView
-                  ? 'bg-indigo-950 text-white shadow-md ring-2 ring-indigo-400'
-                  : 'bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Resumen Integral Comuna 70</span>
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* RESIDENT / NON-ADMIN VIEW: COMPACT OVERVIEW DRAWER + ASSIGNED STREAM */
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
-                <Waves className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                    {t('nav.dashboard')}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
-                    {t('status.normal') || 'Normal'}
-                  </span>
-                </div>
-                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                  Quebrada {activeCuenca.name} · {currentUser?.barrioSector || activeCuenca.sector}
-                </h2>
-              </div>
-            </div>
-
-            {/* Compact List Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setShowCompactList(!showCompactList)}
-              className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer self-start sm:self-auto border border-slate-200 dark:border-slate-700"
-            >
-              <Layers className="w-4 h-4 text-[#8B0000] dark:text-red-400" />
-              <span>Panorama de Quebradas Comuna 70</span>
-              {showCompactList ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-
-          {/* Compact Quebradas Overview (Drawer without saturating the screen) */}
-          {showCompactList && (
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-bold uppercase tracking-wider">
-                  Listado Resumido de Quebradas Comuna 70 (Altavista)
-                </span>
-                <span>Todas en condición normal</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {CUENCAS_LIST.filter((c) => c.id !== 'red-comuna-70').map((c) => {
-                  const isCurrent = c.id === effectiveCuencaId;
-                  return (
-                    <div
-                      key={c.id}
-                      className={`p-3 rounded-xl border transition-all ${
-                        isCurrent
-                          ? 'bg-white dark:bg-slate-900 border-[#8B0000] ring-1 ring-[#8B0000]/30 shadow-2xs'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
-                          {c.name.split('/')[0]}
-                        </span>
-                        <span className="text-xs px-1.5 py-0.2 rounded font-mono font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                          {c.capacityPercentage}%
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {c.sector}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 2. DEDICATED SECTOR CONTENT */}
-      {!isAllView ? (
-        <div className="space-y-6">
-          {/* Active Zone Main Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200/90 dark:border-slate-800 shadow-sm transition-colors">
-            {/* Zone Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs font-mono font-bold uppercase px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    {activeCuenca.siataStationId}
-                  </span>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                    {t('status.normal') || 'Normalidad Hidrológica'}
-                  </span>
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight">
-                  Quebrada {activeCuenca.name}
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>Sectores: <strong>{activeCuenca.sector}</strong></span>
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                <button
-                  onClick={() => onNavigateToMap(activeCuenca.id)}
-                  className="px-5 py-3 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
-                >
-                  <Compass className="w-4 h-4 text-red-200" />
-                  <span>{t('nav.map')}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Gauges & Telemetry */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase block">
-                  Cota Actual de Nivel
-                </span>
-                <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                  {activeCuenca.currentLevel.toFixed(2)} m
-                </div>
-                <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
-                  Umbral máximo: {activeCuenca.maxThreshold.toFixed(2)} m
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase block">
-                  Capacidad Utilizada
-                </span>
-                <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                  {activeCuenca.capacityPercentage}%
-                </div>
-                <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-2 overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full"
-                    style={{ width: `${activeCuenca.capacityPercentage}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase block">
-                  Margen de Seguridad Libre
-                </span>
-                <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                  {activeCuenca.margin} cm
-                </div>
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 block font-bold">
-                  Condición estable y segura
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Citizen Community Reports in Dashboard */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left: Community Feed */}
-            <div className="lg:col-span-6 bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                    Reportes Ciudadanos Verificados
-                  </h3>
-                </div>
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
-                  {approvedReports.length} verificados
-                </span>
-              </div>
-
-              {approvedReports.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
-                  {t('reports.empty_desc')}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {approvedReports.map((r) => (
-                    <div
-                      key={r.id}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2"
-                    >
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-extrabold text-slate-900 dark:text-white">
-                          {r.userName} ({r.sector})
-                        </span>
-                        <span className="font-mono text-slate-400">{r.timestamp}</span>
-                      </div>
-                      <p className="text-xs text-slate-700 dark:text-slate-300">
-                        {r.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Right: Quick Reporting Form */}
-            <div className="lg:col-span-6 bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                <Send className="w-5 h-5 text-[#8B0000] dark:text-red-400" />
-                <div>
-                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
-                    Reportar Novedad en mi Sector
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Sujeto a verificación previa del equipo administrativo
-                  </p>
-                </div>
-              </div>
-
-              {reportSuccessMessage && (
-                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
-                  {reportSuccessMessage}
-                </div>
-              )}
-
-              {reportError && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 text-xs font-bold border border-rose-200 dark:border-rose-800">
-                  {reportError}
-                </div>
-              )}
-
-              <form onSubmit={handleCitizenReportSubmit} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Nivel Observado
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setReportLevel('bajo_muro')}
-                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                        reportLevel === 'bajo_muro'
-                          ? 'bg-emerald-50 dark:bg-emerald-950 border-emerald-500 text-emerald-800'
-                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Bajo muro
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReportLevel('al_puente')}
-                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                        reportLevel === 'al_puente'
-                          ? 'bg-amber-50 dark:bg-amber-950 border-amber-500 text-amber-800'
-                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Al puente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReportLevel('desbordada')}
-                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                        reportLevel === 'desbordada'
-                          ? 'bg-rose-50 dark:bg-rose-950 border-rose-500 text-rose-800'
-                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Desbordada
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Observaciones
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={reportNotes}
-                    onChange={(e) => setReportNotes(e.target.value)}
-                    placeholder="Describe novedades específicas..."
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-
-                {/* File Attachment (Mandatory) */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Foto o Video Obligatorio *
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <label className="py-2 px-3 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Adjuntar Archivo</span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    <span className="text-xs text-slate-500 font-mono">
-                      {reportAttachments.length} adjunto(s)
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Enviar para Aprobación</span>
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* 3. RESUMEN INTEGRAL (ADMIN) */
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div>
-              <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                Resumen Hidrológico Integral de la Comuna 70
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Red oficial SIATA Comuna 70 · Todas las cuencas en nivel seguro
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight">
+                Quebrada {activeCuenca.name}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5 font-medium">
+                <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                <span>{currentUser?.barrioSector || activeCuenca.sector}</span>
               </p>
             </div>
-            <button
-              onClick={() => onNavigateToMap('red-comuna-70')}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-xs"
-            >
-              <Compass className="w-4 h-4 text-cyan-400" />
-              <span>Ver Mapa Satelital Completo</span>
-            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {CUENCAS_LIST.filter((c) => c.id !== 'red-comuna-70').map((c) => (
-              <div
-                key={c.id}
-                className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-4"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                      {c.siataStationId}
-                    </span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                      Normal
-                    </span>
-                  </div>
-
-                  <h3 className="font-black text-base text-slate-900 dark:text-white">
-                    Quebrada {c.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                    {c.sector}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-200 dark:border-slate-700 text-xs">
-                    <div>
-                      <span className="text-slate-400 text-xs block">Nivel</span>
-                      <span className="font-mono font-bold text-slate-900 dark:text-white">{c.currentLevel.toFixed(2)} m</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs block">Capacidad</span>
-                      <span className="font-mono font-bold text-slate-900 dark:text-white">{c.capacityPercentage}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setAdminSelectedCuencaId(c.id)}
-                  className="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>Ver solo esta zona</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+          {/* Badge de Alerta de Cauce */}
+          <div className="self-start sm:self-auto">
+            <span className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-extrabold border ${statusColorClasses}`}>
+              <span className={`w-2.5 h-2.5 rounded-full ${dotColorClass} animate-pulse`} />
+              <span>{statusLabel}</span>
+            </span>
           </div>
         </div>
-      )}
+
+        {/* Métricas Principales de Nivel del Cauce */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6">
+          {/* 1. Nivel Actual en Metros */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              <span>Nivel del Cauce</span>
+              <Activity className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
+                {activeCuenca.currentLevel.toFixed(2)}
+              </span>
+              <span className="text-sm font-bold text-slate-500 dark:text-slate-400">m</span>
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+              Umbral de desborde: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{activeCuenca.maxThreshold.toFixed(2)} m</span>
+            </div>
+          </div>
+
+          {/* 2. Capacidad y Porcentaje */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              <span>Capacidad Utilizada</span>
+              <Gauge className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-3xl sm:text-4xl font-black font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
+                {activeCuenca.capacityPercentage}%
+              </span>
+            </div>
+            {/* Barra de progreso de capacidad */}
+            <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-2.5 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  activeCuenca.capacityPercentage > 70
+                    ? 'bg-rose-500'
+                    : activeCuenca.capacityPercentage > 45
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+                }`}
+                style={{ width: `${activeCuenca.capacityPercentage}%` }}
+              />
+            </div>
+          </div>
+
+          {/* 3. Margen de Seguridad */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              <span>Margen Libre</span>
+              <TrendingDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
+                {activeCuenca.margin}
+              </span>
+              <span className="text-sm font-bold text-slate-500 dark:text-slate-400">cm libres</span>
+            </div>
+            <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-bold flex items-center gap-1">
+              <span>✓ Flujo laminar en cota segura</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfica Simplificada y Limpia del Comportamiento del Flujo */}
+        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                Comportamiento del Flujo
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Evolución del nivel en metros durante la última hora
+              </p>
+            </div>
+
+            {/* Tooltip dinámico o indicador de tendencia */}
+            <div className="text-right">
+              {activePointIndex !== null ? (
+                <div className="text-xs font-mono">
+                  <span className="text-slate-400 mr-1.5">{historyData[activePointIndex].label}:</span>
+                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
+                    {historyData[activePointIndex].level.toFixed(2)} m
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Caudal Estable</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Gráfico SVG Responsive Limpio */}
+          <div className="w-full overflow-hidden rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 p-2 sm:p-4 border border-slate-200/80 dark:border-slate-800">
+            <svg
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              className="w-full h-40 sm:h-48 overflow-visible"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Guía horizontal de umbral preventivo */}
+              <line
+                x1={paddingX}
+                y1={thresholdY}
+                x2={svgWidth - paddingX}
+                y2={thresholdY}
+                stroke="#94a3b8"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+                strokeOpacity="0.5"
+              />
+              <text
+                x={svgWidth - paddingX - 4}
+                y={thresholdY - 6}
+                textAnchor="end"
+                className="fill-slate-400 text-[10px] font-mono"
+              >
+                Cota de Referencia Preventiva
+              </text>
+
+              {/* Área del caudal con degradado */}
+              <path d={areaPath} fill={`url(#${gradientId})`} />
+
+              {/* Línea principal suave de caudal */}
+              <path
+                d={linePath}
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Puntos y etiquetas de tiempo */}
+              {points.map((p, idx) => (
+                <g
+                  key={idx}
+                  className="cursor-pointer group"
+                  onMouseEnter={() => setActivePointIndex(idx)}
+                  onMouseLeave={() => setActivePointIndex(null)}
+                >
+                  {/* Zona de toque ampliada */}
+                  <circle cx={p.x} cy={p.y} r={14} fill="transparent" />
+
+                  {/* Punto visual */}
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={activePointIndex === idx ? 6 : 4}
+                    className={`transition-all duration-150 ${
+                      activePointIndex === idx
+                        ? 'fill-white stroke-emerald-600 stroke-3 dark:fill-slate-900'
+                        : 'fill-emerald-500 stroke-white stroke-2 dark:stroke-slate-900'
+                    }`}
+                  />
+
+                  {/* Valor en metros sobre el punto */}
+                  <text
+                    x={p.x}
+                    y={p.y - 10}
+                    textAnchor="middle"
+                    className={`text-[11px] font-mono font-bold transition-opacity ${
+                      activePointIndex === idx
+                        ? 'fill-slate-900 dark:fill-white opacity-100'
+                        : 'fill-slate-500 dark:fill-slate-400 opacity-80'
+                    }`}
+                  >
+                    {p.level.toFixed(2)}m
+                  </text>
+
+                  {/* Etiqueta de tiempo en eje horizontal */}
+                  <text
+                    x={p.x}
+                    y={svgHeight - 10}
+                    textAnchor="middle"
+                    className="fill-slate-400 dark:fill-slate-500 text-[11px] font-mono"
+                  >
+                    {p.label}
+                  </text>
+                </g>
+              ))}
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

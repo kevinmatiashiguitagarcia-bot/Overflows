@@ -135,10 +135,12 @@ function AppContent() {
           onOpenDeleteVerification={() => setDeleteModalOpen(true)}
         />
 
-        {/* Emergency Alert Banner (Peaceful normal conditions, fluid timer) */}
-        <BannerAlert
-          onOpenRecommendations={() => setRecommendationsModalOpen(true)}
-        />
+        {/* Emergency Alert Banner (Excluded from MI QUEBRADA section as requested) */}
+        {currentView !== 'inicio' && (
+          <BannerAlert
+            onOpenRecommendations={() => setRecommendationsModalOpen(true)}
+          />
+        )}
 
         {/* Main View Area */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">

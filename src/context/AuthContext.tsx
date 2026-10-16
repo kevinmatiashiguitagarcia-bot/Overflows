@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserAccount, UserRole } from '../types';
+import { sendPasswordResetEmail } from '../services/emailService';
 
 interface RegisterPayload {
   name: string;
@@ -19,7 +20,11 @@ interface AuthContextType {
   register: (payload: RegisterPayload) => { success: boolean; error?: string };
   logout: () => void;
   checkUserExists: (identifier: string) => { exists: boolean; maskedIdentifier?: string };
-  resetPassword: (identifier: string, newPassword: string) => { success: boolean; error?: string };
+  resetPassword: (
+    identifier: string,
+    newPasswordOrCode: string,
+    maybeNewPassword?: string
+  ) => { success: boolean; error?: string };
   verifyCurrentUserPassword: (password: string) => boolean;
   deleteAccount: (userId: string, passwordConfirm?: string) => { success: boolean; message: string; error?: string };
   updateUserContact: (
@@ -27,6 +32,7 @@ interface AuthContextType {
     updates: { email?: string; phone?: string }
   ) => { success: boolean; message: string; error?: string };
   toggleUserRole: (userId: string) => void;
+  requestPasswordReset: (identifier: string) => { success: boolean; error?: string };
 }
 
 const STORAGE_USERS_KEY = 'overflows_altavista_users_v4';
@@ -86,6 +92,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     return null;
   });
+
+  const [activeResetCodes, setActiveResetCodes] = useState<Record<string, { code: string; expiresAt: number }>>({});
 
   // Sync users to localStorage
   useEffect(() => {
@@ -290,14 +298,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { exists: true, maskedIdentifier: masked };
   };
 
-  // Reset password implementation
-  const resetPassword = (identifier: string, newPassword: string): { success: boolean; error?: string } => {
+  // Request password reset verification code
+  const requestPasswordReset = (identifier: string): { success: boolean; error?: string } => {
     const rawTrimmed = identifier.trim();
     const cleanIdPhone = normalizePhone(rawTrimmed);
     const isLikelyEmail = rawTrimmed.includes('@');
 
+    const user = usersRegistry.find((u) => {
+      if (isLikelyEmail) {
+        return u.email.toLowerCase() === rawTrimmed.toLowerCase();
+      }
+      const uPhone = normalizePhone(u.phone);
+      return (
+        (cleanIdPhone.length >= 7 && uPhone === cleanIdPhone) ||
+        u.email.toLowerCase() === rawTrimmed.toLowerCase()
+      );
+    });
+
+    if (!user) {
+      return {
+        success: false,
+        error: 'No se encontró ninguna cuenta comunitaria registrada con este dato.'
+      };
+    }
+
+    const cleanEmail = user.email.toLowerCase();
+    // Generate secure 6-digit verification code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes validity
+
+    setActiveResetCodes((prev) => ({
+      ...prev,
+      [cleanEmail]: { code, expiresAt }
+    }));
+
+    // Send the verification code directly to the user's email address
+    sendPasswordResetEmail(cleanEmail, user.name, code);
+
+    return {
+      success: true
+    };
+  };
+
+  // Reset password implementation supporting either 2 or 3 parameters
+  const resetPassword = (
+    identifier: string,
+    newPasswordOrCode: string,
+    maybeNewPassword?: string
+  ): { success: boolean; error?: string } => {
+    const rawTrimmed = identifier.trim();
+    const cleanIdPhone = normalizePhone(rawTrimmed);
+    const isLikelyEmail = rawTrimmed.includes('@');
+
+    const newPassword = maybeNewPassword !== undefined ? maybeNewPassword : newPasswordOrCode;
+    const verificationCode = maybeNewPassword !== undefined ? newPasswordOrCode : undefined;
+
     if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'La nueva contraseña debe tener al menos 6 caracteres.' };
+      return { success: false, error: 'La nueva contraseña debe tener como mínimo 6 caracteres.' };
     }
 
     const index = usersRegistry.findIndex((u) => {
@@ -315,6 +372,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'No se encontró la cuenta para restablecer la contraseña.' };
     }
 
+    const user = usersRegistry[index];
+    const cleanEmail = user.email.toLowerCase();
+
+    // If verification code is passed, validate against active reset codes
+    if (verificationCode) {
+      const resetEntry = activeResetCodes[cleanEmail];
+      if (resetEntry) {
+        if (Date.now() > resetEntry.expiresAt) {
+          return { success: false, error: 'El código de verificación ha expirado. Por favor solicita uno nuevo.' };
+        }
+        if (resetEntry.code !== verificationCode.trim()) {
+          return { success: false, error: 'El código de verificación de 6 dígitos ingresado es incorrecto.' };
+        }
+      }
+    }
+
     const updatedUsers = [...usersRegistry];
     updatedUsers[index] = {
       ...updatedUsers[index],
@@ -328,6 +401,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { passwordHash, ...safe } = updatedUsers[index];
       setCurrentUser(safe);
     }
+
+    // Clean up active reset code if any
+    setActiveResetCodes((prev) => {
+      const copy = { ...prev };
+      delete copy[cleanEmail];
+      return copy;
+    });
 
     return { success: true };
   };
@@ -473,7 +553,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         verifyCurrentUserPassword,
         deleteAccount,
         updateUserContact,
-        toggleUserRole
+        toggleUserRole,
+        requestPasswordReset
       }}
     >
       {children}
