@@ -12,6 +12,10 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import { QUEBRADAS_MAP_DATA, getPointGoogleMapsUrl } from '../data/quebradaMapsData';
+import {
+  getLocalizedInstruction,
+  getLocalizedEvacuationPoint
+} from '../utils/localizedContent';
 
 interface RecomendacionesModalProps {
   isOpen: boolean;
@@ -95,24 +99,27 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
               <span>{t('recom.preventive_actions')}</span>
             </div>
 
-            {cuencaConfig.specificInstructions.map((instruction) => (
-              <div
-                key={instruction.step}
-                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-start gap-3.5 transition-colors"
-              >
-                <div className="w-7 h-7 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
-                  {instruction.step}
+            {cuencaConfig.specificInstructions.map((rawInstruction) => {
+              const instruction = getLocalizedInstruction(rawInstruction, language);
+              return (
+                <div
+                  key={instruction.step}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-start gap-3.5 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
+                    {instruction.step}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      {instruction.title}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                      {instruction.desc}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {instruction.title}
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                    {instruction.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-start gap-3.5 transition-colors">
               <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0 mt-0.5">
@@ -130,42 +137,47 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
           </div>
 
           {/* Strictly verified safe location for this sector */}
-          <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-3 transition-colors">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>{t('recom.safe_place_title')}</span>
+          {(() => {
+            const localizedEvac = getLocalizedEvacuationPoint(evacPoint, language);
+            return (
+              <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-3 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>{t('recom.safe_place_title')}</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-200 dark:border-emerald-700">
+                    {t('recom.georeferenced')}
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="text-sm sm:text-base font-black text-emerald-950 dark:text-emerald-100">
+                    {localizedEvac.name}
+                  </h4>
+                  <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-1 flex items-center gap-1.5 font-medium">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>{localizedEvac.address}</span>
+                  </p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+                    {t('recom.capacity_label')} <strong className="font-mono">{localizedEvac.capacity} {language === 'en' ? 'people' : 'personas'}</strong> · {localizedEvac.contact}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 flex items-center justify-end">
+                  <a
+                    href={getPointGoogleMapsUrl(localizedEvac)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors shadow-2xs"
+                  >
+                    <span>{t('recom.view_google_maps')}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-200 dark:border-emerald-700">
-                {t('recom.georeferenced')}
-              </span>
-            </div>
-
-            <div>
-              <h4 className="text-sm sm:text-base font-black text-emerald-950 dark:text-emerald-100">
-                {evacPoint.name}
-              </h4>
-              <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-1 flex items-center gap-1.5 font-medium">
-                <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span>{evacPoint.address}</span>
-              </p>
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
-                {t('recom.capacity_label')} <strong className="font-mono">{evacPoint.capacity} {language === 'en' ? 'people' : 'personas'}</strong> · {evacPoint.contact}
-              </p>
-            </div>
-
-            <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 flex items-center justify-end">
-              <a
-                href={getPointGoogleMapsUrl(evacPoint)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>{t('recom.view_gmaps')}</span>
-              </a>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Emergency Contacts Banner */}
           <div className="p-4 rounded-2xl bg-red-950 dark:bg-red-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4 border border-red-900/80 shadow-xs">

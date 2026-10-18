@@ -4,12 +4,15 @@ import { QUEBRADAS_MAP_DATA } from '../data/quebradaMapsData';
 import { CuencaData } from '../types';
 import {
   calculateLiveSiataReading,
-  toggleSiataRainEvent,
   getSiataWeatherMode
 } from '../data/siataTelemetryService';
 import { useAuth } from '../context/AuthContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import { useCuenca } from '../context/CuencaContext';
+import {
+  getLocalizedStationName,
+  getLocalizedCriticalSector
+} from '../utils/localizedContent';
 import {
   Waves,
   MapPin,
@@ -24,13 +27,10 @@ import {
   AlertTriangle,
   ChevronDown,
   Home,
-  Lock,
   ArrowLeft,
   User,
   ShieldAlert,
-  ShieldCheck,
-  CheckCircle2,
-  ExternalLink
+  CheckCircle2
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -55,10 +55,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
     assignedCuenca,
     isExploring,
     isAdmin,
-    canSubmitReports,
     resetToAssigned,
     isRaining,
-    toggleRain,
     availableCuencas
   } = useCuenca();
 
@@ -116,11 +114,6 @@ export const DashboardView: React.FC<DashboardProps> = ({
   const liveFlowRate = activeCuenca.flowRate ?? liveReading.flowRateM3s;
   const liveRainIntensity = activeCuenca.rainIntensityMmH ?? liveReading.rainIntensityMmH;
   const trendDirection = liveReading.trendText;
-
-  const handleToggleRain = () => {
-    toggleRain();
-    setSecondsSinceLastReading(0);
-  };
 
   // Historial de la última hora (Estrictamente registros históricos pasados, cero pronósticos)
   const historyData = useMemo(() => {
@@ -305,17 +298,21 @@ export const DashboardView: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-        {/* Exploration Mode Notice Banner for Citizens */}
+        {/* Exploration Mode Notice Banner (Modo Consulta / Exploración de solo lectura) */}
         {isExploring && (
           <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="font-black text-amber-950 dark:text-amber-200">
-                  {t('reports.exploration_mode_title')}: {language === 'en' ? `${activeCuenca.name} Stream` : `Quebrada ${activeCuenca.name}`}
+                  {language === 'en'
+                    ? `Exploration Mode Active (Read-Only): ${activeCuenca.name} Stream`
+                    : `Modo Exploración Activo (Solo Lectura): Quebrada ${activeCuenca.name}`}
                 </p>
                 <p className="text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                  {t('reports.exploration_mode_notice')}
+                  {language === 'en'
+                    ? 'You are viewing hydrological information, streamflow graphs, and telemetry for this basin in interactive read-only exploration mode.'
+                    : 'Estás consultando la información hidrológica, gráficos de flujo y telemetría de esta cuenca en modo interactivo de solo lectura.'}
                 </p>
               </div>
             </div>
@@ -327,15 +324,6 @@ export const DashboardView: React.FC<DashboardProps> = ({
               >
                 {t('dashboard.return_to_my_stream')}
               </button>
-              {onNavigateToProfile && (
-                <button
-                  type="button"
-                  onClick={onNavigateToProfile}
-                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white border border-amber-300 dark:border-amber-800 font-bold text-xs transition-colors cursor-pointer"
-                >
-                  {t('reports.btn_go_to_profile')}
-                </button>
-              )}
             </div>
           </div>
         )}
@@ -394,7 +382,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
               </h2>
             </div>
             <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-              {t('dashboard.sensor_label')} {activeCuenca.siataStationName}
+              {t('dashboard.sensor_label')} {getLocalizedStationName(activeCuenca.siataStationName, language)}
             </span>
           </div>
 
@@ -699,66 +687,12 @@ export const DashboardView: React.FC<DashboardProps> = ({
                 {t('dashboard.critical_watch_segment')}
               </span>
               <span className="text-amber-900 dark:text-amber-300 font-medium">
-                {mapProfile.criticalSector}
+                {getLocalizedCriticalSector(mapProfile.criticalSector, language)}
               </span>
             </div>
             <span className="text-[11px] font-mono text-amber-800 dark:text-amber-400 font-bold self-start sm:self-auto">
               {t('dashboard.average_velocity')} {mapProfile.flowVelocity}
             </span>
-          </div>
-        </div>
-
-        {/* 4. GUÍA DE REPORTES CIUDADANOS CENTRALIZADA */}
-        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
-          <div className="p-4 sm:p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
-            <div className="space-y-1 max-w-xl">
-              <div className="flex items-center gap-2">
-                {isViewingAssigned ? (
-                  <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                ) : (
-                  <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-                )}
-                <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                  {isViewingAssigned
-                    ? t('reports.title')
-                    : t('dashboard.exploration_mode_badge')}
-                </h4>
-              </div>
-
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                {isViewingAssigned
-                  ? t('dashboard.dedicated_reports_guide')
-                  : language === 'en'
-                  ? `Community Restriction Notice: You can only submit community reports for your official residential area (${assignedCuenca.name} Stream). To report on this basin, update your residential sector in My Profile.`
-                  : `Aviso de Restricción Comunitaria: Solo puedes emitir reportes comunitarios para tu zona de residencia oficial (Quebrada ${assignedCuenca.name}). Para reportar sobre esta cuenca, actualiza tu sector de residencia desde Mi Perfil.`}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2.5 shrink-0">
-              {isViewingAssigned ? (
-                onNavigateToReports && (
-                  <button
-                    type="button"
-                    onClick={onNavigateToReports}
-                    className="px-4 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
-                  >
-                    <span>{t('dashboard.go_to_reports')}</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </button>
-                )
-              ) : (
-                onNavigateToProfile && (
-                  <button
-                    type="button"
-                    onClick={onNavigateToProfile}
-                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                  >
-                    <User className="w-3.5 h-3.5" />
-                    <span>{t('nav.profile')}</span>
-                  </button>
-                )
-              )}
-            </div>
           </div>
         </div>
 

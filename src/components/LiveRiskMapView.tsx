@@ -28,6 +28,11 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useCuenca } from '../context/CuencaContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
+import {
+  getLocalizedStationName,
+  getLocalizedInstruction,
+  getLocalizedEvacuationPoint
+} from '../utils/localizedContent';
 
 export function getUserSectorCoordinates(sectorName?: string): { cuencaId: string; x: number; y: number; label: string } {
   if (!sectorName) return { cuencaId: 'altavista', x: 450, y: 310, label: 'Sector General Altavista' };
@@ -375,11 +380,11 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 {liveTelemetry.stationCode}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                {language === 'en' ? '● Sensor Online' : '● Sensor en Línea'}
+                {language === 'en' ? '● Online Sensor' : '● Sensor en Línea'}
               </span>
             </div>
             <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-              {liveTelemetry.stationName}
+              {getLocalizedStationName(liveTelemetry.stationName, language)}
             </h4>
           </div>
         </div>
@@ -410,7 +415,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
           </div>
           <div>
             <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">
-              {language === 'en' ? 'Upper Rain' : 'Lluvia Alta'}
+              {language === 'en' ? 'Heavy Rain / High Rainfall' : 'Lluvia Alta'}
             </span>
             <span className="font-mono font-black text-sm text-blue-600 dark:text-blue-400">
               {liveTelemetry.rainIntensityMmH} mm/h
@@ -418,7 +423,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
           </div>
           <div>
             <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">
-              {language === 'en' ? 'Safety Margin' : 'Margen Libre'}
+              {language === 'en' ? 'Free Margin / Clearance' : 'Margen Libre'}
             </span>
             <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
               {liveTelemetry.safetyMarginCm} cm
@@ -427,17 +432,21 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
         </div>
       </div>
 
-      {/* Exploration Mode Notice Banner for Citizens */}
+      {/* Exploration Mode Notice Banner (Modo Consulta / Exploración de solo lectura) */}
       {isExploring && (
         <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="font-black text-amber-950 dark:text-amber-200">
-                {t('reports.exploration_mode_title')}: {language === 'en' ? `${activeCuenca.name} Stream` : `Quebrada ${activeCuenca.name}`}
+                {language === 'en'
+                  ? `Exploration Mode Active (Read-Only): ${activeCuenca.name} Stream`
+                  : `Modo Exploración Activo (Solo Lectura): Quebrada ${activeCuenca.name}`}
               </p>
               <p className="text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                {t('reports.exploration_mode_notice')}
+                {language === 'en'
+                  ? 'You are viewing hydrological information, streamflow graphs, and telemetry for this basin in interactive read-only exploration mode.'
+                  : 'Estás consultando la información hidrológica, gráficos de flujo y telemetría de esta cuenca en modo interactivo de solo lectura.'}
               </p>
             </div>
           </div>
@@ -449,15 +458,6 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             >
               {t('dashboard.return_to_my_stream')}
             </button>
-            {onNavigateToProfile && (
-              <button
-                type="button"
-                onClick={onNavigateToProfile}
-                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white border border-amber-300 dark:border-amber-800 font-bold text-xs transition-colors cursor-pointer"
-              >
-                {t('reports.btn_go_to_profile')}
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -552,42 +552,48 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
 
             {/* Dynamic, hyperlocal recommendations based strictly on the current basin */}
             <div className="space-y-3">
-              {currentMap.specificInstructions.map((item) => (
-                <div
-                  key={item.step}
-                  className="p-3.5 rounded-2xl bg-slate-800/80 dark:bg-slate-900/80 border border-slate-700/80 flex items-start gap-3"
-                >
-                  <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30 font-mono">
-                    {item.step}
-                  </span>
-                  <div>
-                    <div className="text-xs font-bold text-slate-100">{item.title}</div>
-                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{item.desc}</p>
+              {currentMap.specificInstructions.map((rawItem) => {
+                const item = getLocalizedInstruction(rawItem, language);
+                return (
+                  <div
+                    key={item.step}
+                    className="p-3.5 rounded-2xl bg-slate-800/80 dark:bg-slate-900/80 border border-slate-700/80 flex items-start gap-3"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 font-black text-xs flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30 font-mono">
+                      {item.step}
+                    </span>
+                    <div>
+                      <div className="text-xs font-bold text-slate-100">{item.title}</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{item.desc}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Single, non-redundant authoritative Safe Point for this basin */}
-            <div className="mt-5 p-4 rounded-2xl bg-emerald-950/70 border border-emerald-800/80">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wide">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{language === 'en' ? 'Safe Evacuation Zone' : 'Zona Segura de Evacuación'}</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 font-bold border border-emerald-700">
-                  {language === 'en' ? 'GPS Verified' : 'GPS Verificado'}
-                </span>
-              </div>
+            {(() => {
+              const localizedEvac = getLocalizedEvacuationPoint(currentMap.evacuationPoint, language);
+              return (
+                <div className="mt-5 p-4 rounded-2xl bg-emerald-950/70 border border-emerald-800/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wide">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{language === 'en' ? 'Safe Evacuation Zone' : 'Zona Segura de Evacuación'}</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 font-bold border border-emerald-700">
+                      {language === 'en' ? 'GPS Verified' : 'GPS Verificado'}
+                    </span>
+                  </div>
 
-              <div className="text-xs font-black text-white">{currentMap.evacuationPoint.name}</div>
-              <div className="text-[11px] text-emerald-200 mt-1 flex items-start gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                <span>{currentMap.evacuationPoint.address}</span>
-              </div>
-              <div className="text-[10px] text-emerald-300/80 mt-1 font-mono">
-                {language === 'en' ? 'Capacity:' : 'Capacidad:'} {currentMap.evacuationPoint.capacity} {language === 'en' ? 'people' : 'personas'} · {currentMap.evacuationPoint.contact}
-              </div>
+                  <div className="text-xs font-black text-white">{localizedEvac.name}</div>
+                  <div className="text-[11px] text-emerald-200 mt-1 flex items-start gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{localizedEvac.address}</span>
+                  </div>
+                  <div className="text-[10px] text-emerald-300/80 mt-1 font-mono">
+                    {language === 'en' ? 'Capacity:' : 'Capacidad:'} {localizedEvac.capacity} {language === 'en' ? 'people' : 'personas'} · {localizedEvac.contact}
+                  </div>
 
               <div className="mt-3.5 flex items-center gap-2">
                 <button
@@ -640,6 +646,8 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 </a>
               </div>
             </div>
+              );
+            })()}
           </div>
         </div>
       </div>
