@@ -202,7 +202,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <p className="text-xs text-slate-600 leading-relaxed">
-            Esta acción borrará de manera definitiva su nombre, correo, teléfono e historial comunitario del sistema Overflows Altavista.
+            Esta acción borrará de manera definitiva su nombre, correo e historial comunitario del sistema Overflows Altavista.
           </p>
 
           <div className="pt-2">

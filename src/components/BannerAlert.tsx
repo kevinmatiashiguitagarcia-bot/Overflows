@@ -3,10 +3,14 @@ import { ShieldCheck, ChevronRight, Activity } from 'lucide-react';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
 
 interface BannerAlertProps {
-  onOpenRecommendations: () => void;
+  onOpenRecommendations?: () => void;
+  showRecommendationsButton?: boolean;
 }
 
-export const BannerAlert: React.FC<BannerAlertProps> = ({ onOpenRecommendations }) => {
+export const BannerAlert: React.FC<BannerAlertProps> = ({
+  onOpenRecommendations,
+  showRecommendationsButton = false
+}) => {
   const { t, language } = useThemeLanguage();
   const [secondsAgo, setSecondsAgo] = useState(12);
 
@@ -44,13 +48,15 @@ export const BannerAlert: React.FC<BannerAlertProps> = ({ onOpenRecommendations 
             </span>
           </div>
 
-          <button
-            onClick={onOpenRecommendations}
-            className="font-bold underline underline-offset-2 hover:text-emerald-200 flex items-center gap-1 transition-colors text-xs sm:text-sm cursor-pointer"
-          >
-            <span>{t('status.view_recommendations')}</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          {showRecommendationsButton && onOpenRecommendations && (
+            <button
+              onClick={onOpenRecommendations}
+              className="font-bold underline underline-offset-2 hover:text-emerald-200 flex items-center gap-1 transition-colors text-xs sm:text-sm cursor-pointer"
+            >
+              <span>{t('status.view_recommendations')}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </div>

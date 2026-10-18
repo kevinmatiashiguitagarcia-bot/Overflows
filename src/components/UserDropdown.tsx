@@ -92,8 +92,12 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
         aria-haspopup="true"
       >
         {/* Avatar */}
-        <div className="w-7 h-7 rounded-lg bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-          {initials || <User className="w-3.5 h-3.5" />}
+        <div className="w-7 h-7 rounded-lg bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs overflow-hidden">
+          {currentUser.avatarUrl ? (
+            <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
+          ) : (
+            initials || <User className="w-3.5 h-3.5" />
+          )}
         </div>
 
         {/* User name on larger screens */}
@@ -119,8 +123,12 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
           {/* User Header Summary Card */}
           <div className="p-4 bg-slate-50 border-b border-slate-100">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#8B0000] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-2xs">
-                {initials}
+              <div className="w-10 h-10 rounded-xl bg-[#8B0000] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-2xs overflow-hidden">
+                {currentUser.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
+                ) : (
+                  initials
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <h4 className="text-xs font-black text-slate-900 truncate">

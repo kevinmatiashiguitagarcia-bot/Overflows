@@ -6,7 +6,7 @@ export interface UserAccount {
   id: string;
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   barrioSector: string;
   createdAt: string;
   dataTreatmentAccepted: boolean;

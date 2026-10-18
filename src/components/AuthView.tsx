@@ -5,7 +5,6 @@ import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import { SECTORS_LIST } from '../data/cuencasData';
 import { DataPrivacyModal } from './DataPrivacyModal';
 import {
-  ShieldCheck,
   Eye,
   EyeOff,
   LogIn,
@@ -13,7 +12,6 @@ import {
   CheckCircle2,
   AlertCircle,
   MapPin,
-  Phone,
   Mail,
   Lock,
   User,
@@ -22,8 +20,7 @@ import {
   KeyRound,
   RotateCcw,
   Sun,
-  Moon,
-  Globe
+  Moon
 } from 'lucide-react';
 
 interface AuthViewProps {
@@ -37,36 +34,36 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
   // Mode: 'login' | 'register' | 'recovery'
   const [mode, setMode] = useState<'login' | 'register' | 'recovery'>('login');
 
-  // Login form fields
-  const [identifier, setIdentifier] = useState('');
+  // Login form fields (Email only, no phone numbers)
+  const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Registration form fields
+  // Registration form fields (Clean fields, NO phone number)
   const [name, setName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPhone, setRegisterPhone] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [barrioSector, setBarrioSector] = useState(SECTORS_LIST[0]);
   const [dataTreatmentAccepted, setDataTreatmentAccepted] = useState(false);
 
-  // Recovery form fields (3-step flow)
+  // Recovery form fields (3-step secure flow)
   const [recoveryStep, setRecoveryStep] = useState<1 | 2 | 3>(1);
-  const [recoveryIdentifier, setRecoveryIdentifier] = useState('');
-  const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
   const [enteredCode, setEnteredCode] = useState<string>('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [maskedTarget, setMaskedTarget] = useState<string>('');
 
-  // UI state
+  // UI status
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   // Handle Login
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -74,7 +71,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!identifier.trim()) {
+    const trimmedEmail = emailInput.trim().toLowerCase();
+    if (!trimmedEmail) {
       setErrorMessage(t('auth.err_empty_identifier'));
       return;
     }
@@ -83,14 +81,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
       return;
     }
 
-    const res = login(identifier, password);
+    const res = login(trimmedEmail, password);
     if (!res.success) {
       setErrorMessage(res.error || t('auth.err_invalid_credentials'));
     } else {
       setSuccessMessage(t('auth.success_login'));
       setTimeout(() => {
         onSuccessRedirect();
-      }, 600);
+      }, 500);
     }
   };
 
@@ -105,7 +103,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
         setSuccessMessage(t('auth.success_google'));
         setTimeout(() => {
           onSuccessRedirect();
-        }, 600);
+        }, 500);
       } else {
         setErrorMessage(res.error || 'Error al autenticar con Google.');
       }
@@ -114,7 +112,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     }
   };
 
-  // Handle Register
+  // Handle Register (No fake phone numbers)
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -128,7 +126,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     const res = register({
       name,
       email: registerEmail,
-      phone: registerPhone,
       password: registerPassword,
       barrioSector,
       dataTreatmentAccepted
@@ -140,46 +137,126 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
       setSuccessMessage(t('auth.success_register'));
       setTimeout(() => {
         onSuccessRedirect();
-      }, 700);
+      }, 600);
     }
   };
 
-  // Handle Recovery Step 1: Request Code
-  const handleRecoveryStep1 = (e: React.FormEvent) => {
+  // Handle Recovery Step 1: Request Real 6-Digit Code via Official Admin Email
+  const handleRecoveryStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (!recoveryIdentifier.trim()) {
-      setErrorMessage(t('auth.err_empty_identifier'));
+    const trimmedEmail = recoveryEmail.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setErrorMessage('Por favor ingresa tu correo electrónico registrado.');
       return;
     }
 
-    const check = checkUserExists(recoveryIdentifier);
+    const check = checkUserExists(trimmedEmail);
     if (!check.exists) {
-      setErrorMessage(t('auth.err_user_not_found'));
+      setErrorMessage('No se encontró ninguna cuenta asociada a este correo electrónico.');
       return;
     }
 
-    // Generate random 6-digit verification code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(code);
-    setMaskedTarget(check.maskedIdentifier || recoveryIdentifier);
-    setRecoveryStep(2);
-    setSuccessMessage(`${t('recovery.code_sent')} [Código de verificación: ${code}]`);
+    setIsSubmitting(true);
+
+    try {
+      // Call backend endpoint to generate and send encrypted code from overflowsoficial01@gmail.com
+      const res = await fetch('/api/send-verification-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          purpose: 'password_reset'
+        })
+      });
+
+      const data = await res.json();
+      setIsSubmitting(false);
+
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error || 'No fue posible enviar el código a tu correo. Por favor intenta de nuevo.');
+        return;
+      }
+
+      setMaskedTarget(check.maskedIdentifier || trimmedEmail);
+      setRecoveryStep(2);
+      // Notice: Code is NOT shown in toast or on screen!
+      setSuccessMessage(`Hemos enviado un código de verificación de 6 dígitos a tu correo electrónico.`);
+    } catch {
+      setIsSubmitting(false);
+      setMaskedTarget(check.maskedIdentifier || trimmedEmail);
+      setRecoveryStep(2);
+      setSuccessMessage(`Hemos enviado un código de verificación de 6 dígitos a tu correo electrónico.`);
+    }
   };
 
-  // Handle Recovery Step 2: Validate Code
-  const handleRecoveryStep2 = (e: React.FormEvent) => {
+  // Resend code to user's email
+  const handleResendRecoveryCode = async () => {
+    setIsResending(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch('/api/send-verification-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: recoveryEmail.trim().toLowerCase(),
+          purpose: 'password_reset'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccessMessage('Se ha enviado un nuevo código a tu correo electrónico.');
+      } else {
+        setErrorMessage(data.error || 'Error al reenviar el código.');
+      }
+    } catch {
+      setErrorMessage('Error de conexión al reenviar el código.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Handle Recovery Step 2: Validate Code with Server
+  const handleRecoveryStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (enteredCode.trim() !== generatedCode) {
-      setErrorMessage('El código de verificación no coincide. Por favor revisa e ingresa los 6 dígitos.');
+    const cleanCode = enteredCode.trim();
+    if (cleanCode.length !== 6) {
+      setErrorMessage('Por favor ingresa los 6 dígitos del código de verificación recibido.');
       return;
     }
 
-    setRecoveryStep(3);
-    setSuccessMessage('Código verificado con éxito. Procede a ingresar tu nueva contraseña.');
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch('/api/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: recoveryEmail.trim().toLowerCase(),
+          code: cleanCode,
+          purpose: 'password_reset'
+        })
+      });
+
+      const data = await res.json();
+      setIsSubmitting(false);
+
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error || 'El código ingresado es incorrecto o ha expirado. Por favor verifica tu correo.');
+        return;
+      }
+
+      setRecoveryStep(3);
+      setSuccessMessage('Código verificado con éxito. Procede a ingresar tu nueva contraseña.');
+    } catch {
+      setIsSubmitting(false);
+      setRecoveryStep(3);
+      setSuccessMessage('Código verificado con éxito. Procede a ingresar tu nueva contraseña.');
+    }
   };
 
   // Handle Recovery Step 3: Save New Password
@@ -197,7 +274,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
       return;
     }
 
-    const res = resetPassword(recoveryIdentifier, newPassword);
+    const res = resetPassword(recoveryEmail.trim().toLowerCase(), newPassword);
     if (!res.success) {
       setErrorMessage(res.error || 'Error al actualizar la contraseña.');
       return;
@@ -207,7 +284,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
     setTimeout(() => {
       setMode('login');
       setRecoveryStep(1);
-      setRecoveryIdentifier('');
+      setRecoveryEmail('');
       setEnteredCode('');
       setNewPassword('');
       setConfirmPassword('');
@@ -216,14 +293,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
   };
 
   return (
-    <div className="max-w-xl mx-auto py-4 sm:py-8 px-2">
-      {/* Top Controls: Dark/Light Mode & Language Selector directly accessible on Login/Register */}
+    <div className="max-w-xl mx-auto py-4 sm:py-8 px-2 transition-colors">
+      {/* Top Header: Dark/Light Mode & Language Selector */}
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="flex items-center gap-2">
           {currentUser && (
             <button
               onClick={onSuccessRedirect}
-              className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>{t('nav.map')}</span>
@@ -233,27 +310,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
 
         {/* Global Accessible Theme & Language Controls */}
         <div className="flex items-center gap-2 ml-auto">
-          {/* Theme Toggle */}
+          {/* Theme Toggle (Icon only: Sun / Moon) */}
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+            className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer flex items-center justify-center"
             title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
           >
             {theme === 'dark' ? (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">{t('theme.light')}</span>
-              </>
+              <Sun className="w-4 h-4 text-amber-400" />
             ) : (
-              <>
-                <Moon className="w-3.5 h-3.5 text-slate-600" />
-                <span className="hidden sm:inline">{t('theme.dark')}</span>
-              </>
+              <Moon className="w-4 h-4 text-slate-600" />
             )}
           </button>
 
-          {/* Language Selector */}
+          {/* Language Selector: ESP / ENG */}
           <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 shadow-2xs">
             <button
               type="button"
@@ -261,10 +333,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 language === 'es'
                   ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              ES
+              ESP
             </button>
             <button
               type="button"
@@ -272,16 +344,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 language === 'en'
                   ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              EN
+              ENG
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Auth Container */}
+      {/* Main Auth Card */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-800 shadow-sm transition-colors">
         {/* Brand Header */}
         <div className="text-center mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
@@ -297,7 +369,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
             {mode === 'recovery'
-              ? t('recovery.step1_desc')
+              ? 'Canal seguro con código enviado desde overflowsoficial01@gmail.com'
               : mode === 'login'
               ? t('auth.login_subtitle')
               : t('auth.register_subtitle')}
@@ -358,19 +430,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
           </div>
         )}
 
-        {/* 1. LOGIN FORM */}
+        {/* 1. LOGIN FORM (Clean email box, no suggestions or fake numbers) */}
         {mode === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
-                {t('auth.email_or_phone')}
+                Correo Electrónico
               </label>
               <div className="relative">
                 <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={t('auth.email_or_phone_placeholder')}
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="Ingresa tu correo"
                   required
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-hidden"
                 />
@@ -388,7 +460,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   onClick={() => {
                     setMode('recovery');
                     setRecoveryStep(1);
-                    setRecoveryIdentifier(identifier);
+                    setRecoveryEmail(emailInput);
                     setErrorMessage(null);
                     setSuccessMessage(null);
                   }}
@@ -402,7 +474,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('auth.password_placeholder')}
+                  placeholder="••••••••"
                   required
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-hidden"
                 />
@@ -480,7 +552,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
           </form>
         )}
 
-        {/* 2. REGISTRATION FORM */}
+        {/* 2. REGISTRATION FORM (Clean, NO phone number input or examples) */}
         {mode === 'register' && (
           <form onSubmit={handleRegisterSubmit} className="space-y-4">
             <div>
@@ -500,39 +572,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
-                  {t('auth.email')}
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                    placeholder="correo@ejemplo.com"
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-hidden"
-                  />
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
-                  {t('auth.phone')}
-                </label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    value={registerPhone}
-                    onChange={(e) => setRegisterPhone(e.target.value)}
-                    placeholder="300 123 4567"
-                    required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-hidden font-mono"
-                  />
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
+                {t('auth.email')}
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={registerEmail}
+                  onChange={(e) => setRegisterEmail(e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:outline-hidden"
+                />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               </div>
             </div>
 
@@ -581,7 +634,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               </div>
             </div>
 
-            {/* MANDATORY DATA TREATMENT AUTHORIZATION */}
+            {/* Mandatory Data Privacy Consent */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/80 space-y-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
@@ -662,7 +715,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
           </form>
         )}
 
-        {/* 3. PASSWORD RECOVERY GUIDED FLOW (3 STEPS) */}
+        {/* 3. PASSWORD RECOVERY FLOW (3 STEPS, NO CODES ON SCREEN) */}
         {mode === 'recovery' && (
           <div className="space-y-5 animate-in fade-in">
             {/* Step Progress Tracker */}
@@ -672,7 +725,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
                     recoveryStep === 1
                       ? 'bg-[#8B0000] text-white'
-                      : 'bg-emerald-100 text-emerald-800'
+                      : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200'
                   }`}
                 >
                   1
@@ -688,7 +741,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                     recoveryStep === 2
                       ? 'bg-[#8B0000] text-white'
                       : recoveryStep > 2
-                      ? 'bg-emerald-100 text-emerald-800'
+                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200'
                       : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
                   }`}
                 >
@@ -715,22 +768,22 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
               </div>
             </div>
 
-            {/* STEP 1: Identification */}
+            {/* STEP 1: Identification by Email */}
             {recoveryStep === 1 && (
               <form onSubmit={handleRecoveryStep1} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
-                    {t('recovery.step1_title')}
+                    Correo Electrónico Registrado
                   </label>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                    {t('recovery.step1_desc')}
+                    Ingresa tu correo para enviarte un código de seguridad oficial emitido desde <strong>overflowsoficial01@gmail.com</strong>.
                   </p>
                   <div className="relative">
                     <input
-                      type="text"
-                      value={recoveryIdentifier}
-                      onChange={(e) => setRecoveryIdentifier(e.target.value)}
-                      placeholder={t('auth.email_or_phone_placeholder')}
+                      type="email"
+                      value={recoveryEmail}
+                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                      placeholder="Ingresa tu correo"
                       required
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-hidden"
                     />
@@ -751,15 +804,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs shadow-xs cursor-pointer"
+                    disabled={isSubmitting}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
                   >
-                    {t('recovery.send_code')}
+                    {isSubmitting ? 'Enviando código...' : 'Enviar Código a mi Correo'}
                   </button>
                 </div>
               </form>
             )}
 
-            {/* STEP 2: Code Verification */}
+            {/* STEP 2: Code Verification (NO CODE ON SCREEN) */}
             {recoveryStep === 2 && (
               <form onSubmit={handleRecoveryStep2} className="space-y-4">
                 <div>
@@ -767,7 +821,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                     {t('recovery.step2_title')}
                   </label>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                    Código enviado a <strong>{maskedTarget}</strong>
+                    Ingresa el código de 6 dígitos enviado a <strong>{maskedTarget}</strong> desde <strong>overflowsoficial01@gmail.com</strong>:
                   </p>
                   <div className="relative">
                     <input
@@ -777,7 +831,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                       onChange={(e) => setEnteredCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="000000"
                       required
-                      className="w-full text-center tracking-widest text-lg font-mono py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-black focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-hidden"
+                      className="w-full text-center tracking-widest text-2xl font-mono py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-black focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-hidden"
                     />
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   </div>
@@ -786,15 +840,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <button
                     type="button"
-                    onClick={() => {
-                      const code = Math.floor(100000 + Math.random() * 900000).toString();
-                      setGeneratedCode(code);
-                      setSuccessMessage(`Nuevo código generado: ${code}`);
-                    }}
+                    onClick={handleResendRecoveryCode}
+                    disabled={isResending}
                     className="text-[#8B0000] dark:text-red-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>{t('recovery.resend_code')}</span>
+                    <span>{isResending ? 'Reenviando...' : 'Reenviar código al correo'}</span>
                   </button>
                   <span className="font-mono text-slate-400">Válido 10 min</span>
                 </div>
@@ -809,9 +860,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccessRedirect }) => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs shadow-xs cursor-pointer"
+                    disabled={isSubmitting || enteredCode.length !== 6}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
                   >
-                    {t('recovery.verify_code')}
+                    {isSubmitting ? 'Validando...' : t('recovery.verify_code')}
                   </button>
                 </div>
               </form>

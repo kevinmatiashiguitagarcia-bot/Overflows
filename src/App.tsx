@@ -201,6 +201,7 @@ function AppContent() {
       <RecomendacionesModal
         isOpen={recommendationsModalOpen}
         onClose={() => setRecommendationsModalOpen(false)}
+        selectedCuencaId={selectedCuencaId}
       />
 
       {/* Report Modal */}

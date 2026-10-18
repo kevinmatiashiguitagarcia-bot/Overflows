@@ -18,6 +18,8 @@ export interface QuebradaEvacuationPoint {
   capacity: number;
   x: number;
   y: number;
+  lat?: number;
+  lng?: number;
   address: string;
   contact: string;
   googleMapsQuery?: string;
@@ -27,31 +29,100 @@ export interface QuebradaLandmark {
   text: string;
   x: number;
   y: number;
+  lat?: number;
+  lng?: number;
   color?: string;
   fontSize?: number;
   bold?: boolean;
   googleMapsQuery?: string;
-  category?: 'salud' | 'comercio' | 'universidad' | 'residencial' | 'via' | 'nacimiento' | 'sector' | 'puente' | 'mirador';
+  category?: 'salud' | 'comercio' | 'universidad' | 'residencial' | 'via' | 'nacimiento' | 'sector' | 'puente' | 'mirador' | 'comunidad' | 'escuela';
   description?: string;
 }
 
-export function getPointGoogleMapsUrl(query: string, satellite: boolean = false): string {
-  const clean = query.replace(/\(.*?\)/g, '').replace(/[★·]/g, '').trim();
-  const full = clean.toLowerCase().includes('medellín') || clean.toLowerCase().includes('altavista')
-    ? clean
-    : `${clean}, Altavista, Medellín, Colombia`;
-  if (satellite) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(full)}&t=k`;
+export const VERIFIED_SECTOR_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  'aguas frias': { lat: 6.2290, lng: -75.6170 },
+  'aguas frías': { lat: 6.2290, lng: -75.6170 },
+  'morro plan': { lat: 6.2260, lng: -75.6190 },
+  'santeros': { lat: 6.2220, lng: -75.6290 },
+  'drogueria': { lat: 6.2295, lng: -75.6165 },
+  'droguería': { lat: 6.2295, lng: -75.6165 },
+  'altos del castillo': { lat: 6.2305, lng: -75.6140 },
+  'universidad de medellin': { lat: 6.2315, lng: -75.6105 },
+  'universidad de medellín': { lat: 6.2315, lng: -75.6105 },
+  'campus udem': { lat: 6.2315, lng: -75.6105 },
+  'los molinos': { lat: 6.2325, lng: -75.6040 },
+  'calle 30': { lat: 6.2325, lng: -75.6040 },
+  'romeral': { lat: 6.2120, lng: -75.6350 },
+  'manzanillo': { lat: 6.2110, lng: -75.6180 },
+  'san pablo': { lat: 6.2238, lng: -75.6090 },
+  'puente san pablo': { lat: 6.2235, lng: -75.6095 },
+  'altavista central': { lat: 6.2215, lng: -75.6165 },
+  'coliseo parroquial': { lat: 6.2215, lng: -75.6165 },
+  'parque principal': { lat: 6.2210, lng: -75.6160 },
+  'padre amaya': { lat: 6.2425, lng: -75.6210 },
+  'ladrillera': { lat: 6.2395, lng: -75.6160 },
+  'san judas': { lat: 6.2395, lng: -75.6160 },
+  'el morro': { lat: 6.2410, lng: -75.6180 },
+  'el corazón': { lat: 6.2410, lng: -75.6180 },
+  'el corazon': { lat: 6.2410, lng: -75.6180 },
+  'buenavista': { lat: 6.2385, lng: -75.6125 },
+  'escuela buenavista': { lat: 6.2385, lng: -75.6125 },
+  'cuchilla el barcino': { lat: 6.2075, lng: -75.6220 },
+  'barcino': { lat: 6.2075, lng: -75.6220 },
+  'el jardin': { lat: 6.2105, lng: -75.6150 },
+  'el jardín': { lat: 6.2105, lng: -75.6150 },
+  'camelias': { lat: 6.2120, lng: -75.6120 },
+  'rodeo alto': { lat: 6.2135, lng: -75.6090 },
+  'la esperanza': { lat: 6.2265, lng: -75.6185 },
+  'chispero': { lat: 6.2280, lng: -75.6200 },
+  'debora arango': { lat: 6.2225, lng: -75.6140 },
+  'buga': { lat: 6.2050, lng: -75.6280 },
+  'patio bonito': { lat: 6.2180, lng: -75.6220 },
+  'el pelon': { lat: 6.2110, lng: -75.6180 },
+  'el pelón': { lat: 6.2110, lng: -75.6180 },
+  'ana diaz': { lat: 6.2450, lng: -75.6150 },
+  'ana díaz': { lat: 6.2450, lng: -75.6150 },
+  'salado': { lat: 6.2430, lng: -75.6170 },
+  'betania': { lat: 6.2460, lng: -75.6130 }
+};
+
+export function resolvePointCoords(queryOrPoint: string | { lat?: number; lng?: number; address?: string; name?: string; text?: string; googleMapsQuery?: string }): { lat: number; lng: number } {
+  if (typeof queryOrPoint === 'object' && queryOrPoint !== null) {
+    if (typeof queryOrPoint.lat === 'number' && typeof queryOrPoint.lng === 'number' && queryOrPoint.lat !== 0 && queryOrPoint.lng !== 0) {
+      return { lat: queryOrPoint.lat, lng: queryOrPoint.lng };
+    }
+    const combined = `${queryOrPoint.googleMapsQuery || ''} ${queryOrPoint.text || ''} ${queryOrPoint.name || ''} ${queryOrPoint.address || ''}`.toLowerCase();
+    for (const [key, coords] of Object.entries(VERIFIED_SECTOR_COORDINATES)) {
+      if (combined.includes(key)) {
+        return coords;
+      }
+    }
+  } else if (typeof queryOrPoint === 'string') {
+    const lower = queryOrPoint.toLowerCase();
+    for (const [key, coords] of Object.entries(VERIFIED_SECTOR_COORDINATES)) {
+      if (lower.includes(key)) {
+        return coords;
+      }
+    }
   }
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(full)}`;
+  // Default verified center of Corregimiento Altavista
+  return { lat: 6.2215, lng: -75.6165 };
 }
 
-export function getPointGoogleMapsDirectionsUrl(destination: string): string {
-  const clean = destination.replace(/\(.*?\)/g, '').replace(/[★·]/g, '').trim();
-  const full = clean.toLowerCase().includes('medellín') || clean.toLowerCase().includes('altavista')
-    ? clean
-    : `${clean}, Altavista, Medellín, Colombia`;
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(full)}`;
+export function getPointGoogleMapsUrl(
+  queryOrPoint: string | { lat?: number; lng?: number; address?: string; name?: string; text?: string; googleMapsQuery?: string },
+  satellite: boolean = false
+): string {
+  const coords = resolvePointCoords(queryOrPoint);
+  const satParam = satellite ? '&t=k' : '';
+  return `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}${satParam}`;
+}
+
+export function getPointGoogleMapsDirectionsUrl(
+  destination: string | { lat?: number; lng?: number; address?: string; name?: string; text?: string; googleMapsQuery?: string }
+): string {
+  const coords = resolvePointCoords(destination);
+  return `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}`;
 }
 
 export function getPointGoogleMapsEmbedUrl(query: string): string {
@@ -174,6 +245,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'ALTO DE LOS SANTEROS (2,350 m · Nacimiento)',
         x: 40,
         y: 75,
+        lat: 6.2220,
+        lng: -75.6290,
         color: '#064e3b',
         fontSize: 12,
         bold: true,
@@ -185,6 +258,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'VEREDA AGUAS FRÍAS ALTA',
         x: 80,
         y: 360,
+        lat: 6.2245,
+        lng: -75.6240,
         color: '#065f46',
         fontSize: 11.5,
         bold: true,
@@ -196,6 +271,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'DROGUERÍA AGUAS FRÍAS (Ref. Google Maps)',
         x: 335,
         y: 275,
+        lat: 6.2275,
+        lng: -75.6178,
         color: '#dc2626',
         fontSize: 12,
         bold: true,
@@ -207,6 +284,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'Calle 31B',
         x: 495,
         y: 215,
+        lat: 6.2295,
+        lng: -75.6145,
         color: '#475569',
         fontSize: 11,
         bold: true,
@@ -218,6 +297,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'ALTOS DEL CASTILLO ETAPA 1',
         x: 570,
         y: 155,
+        lat: 6.2315,
+        lng: -75.6105,
         color: '#1e293b',
         fontSize: 12.5,
         bold: true,
@@ -229,6 +310,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'Calle 32A',
         x: 745,
         y: 130,
+        lat: 6.2325,
+        lng: -75.6080,
         color: '#475569',
         fontSize: 11,
         bold: true,
@@ -240,6 +323,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'Universidad de Medellín',
         x: 670,
         y: 320,
+        lat: 6.2315,
+        lng: -75.6100,
         color: '#0369a1',
         fontSize: 13,
         bold: true,
@@ -251,6 +336,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         text: 'BELÉN LOS ALPES / LOS MOLINOS (Calle 30)',
         x: 730,
         y: 180,
+        lat: 6.2338,
+        lng: -75.6045,
         color: '#1e293b',
         fontSize: 11.5,
         bold: true,
@@ -331,8 +418,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       capacity: 1200,
       x: 740,
       y: 350,
+      lat: 6.2315,
+      lng: -75.6105,
       address: 'Carrera 87 #30-65 (Campus UdeM) y Sector Central Aguas Frías',
-      contact: 'Comité de Emergencias: 300 240 7070 / UdeM Seguridad: (604) 340 5555'
+      contact: 'Comité de Emergencias: 300 240 7070 / UdeM Seguridad: (604) 340 5555',
+      googleMapsQuery: 'Universidad de Medellín, Carrera 87 #30-65, Medellín'
     },
     incidentAlert: {
       text: 'Monitoreo en Vivo: Tramo Droguería Aguas Frías → Altos del Castillo → Universidad de Medellín → Los Molinos',
@@ -363,14 +453,14 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     id: 'altavista',
     name: 'Altavista',
     basinTitle: 'Eje Hidrográfico Principal Quebrada Altavista',
-    subtitle: 'Tramo Exclusivo: Alto El Romeral → Vereda Aguas Frías → Morro Plan → Central',
+    subtitle: 'Corredor Central: Alto El Romeral → Veredas Buga y Patio Bonito → San Pablo → Sector Central',
     elevationRange: '2,550 - 1,530 m.s.n.m.',
     basinAreaHa: 2820,
     riverLengthKm: 14.8,
     averageSlope: '21%',
     flowVelocity: '0.9 m/s',
     ambientTemp: '16.4°C',
-    criticalSector: 'Sector Morro Plan · Vereda Aguas Frías',
+    criticalSector: 'Vereda San Pablo · Sector Central Altavista',
     currentLevel: 1.84,
     maxThreshold: 2.50,
     marginCm: 66,
@@ -383,7 +473,7 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       bg: 'bg-emerald-100',
       border: 'border-emerald-300'
     },
-    // Distinct path for Quebrada Altavista: North-South central corridor descending from Alto Romeral (480, 60), bending through Aguas Frias (420, 240), Morro Plan (370, 390), La Palma (450, 520)
+    // Distinct path for Quebrada Altavista: North-South central corridor descending from Alto Romeral (480, 60), bending through San Pablo (420, 240), Central Altavista (370, 390)
     riverPathD: 'M 490 60 Q 460 150 430 230 T 380 340 T 390 440 T 470 540',
     floodAuraD: 'M 490 60 Q 460 150 430 230 T 380 340 T 390 440 T 470 540',
     criticalSegmentD: 'M 430 230 Q 400 290 380 340',
@@ -395,17 +485,16 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     ],
     localRoads: [
       { d: 'M 440 50 L 410 240 L 360 380 L 420 560', strokeWidth: 3.5 }, // Vía Principal a Manzanillo / Altavista
-      { d: 'M 180 340 L 370 360 L 680 340', strokeWidth: 2 }, // Vía transversal Aguas Frías
-      { d: 'M 220 480 L 440 500 L 750 490', strokeWidth: 2 } // Vía La Palma
+      { d: 'M 180 340 L 370 360 L 680 340', strokeWidth: 2 }, // Vía transversal San Pablo
+      { d: 'M 220 480 L 440 500 L 750 490', strokeWidth: 2 } // Vía Central Altavista
     ],
     landmarks: [
-      { text: 'ALTO EL ROMERAL (2,550 m)', x: 450, y: 45, color: '#064e3b', fontSize: 13, bold: true },
-      { text: 'Vereda San José del Manzanillo', x: 530, y: 130, color: '#334155', fontSize: 12 },
-      { text: 'Reserva Forestal Manzanillo', x: 210, y: 150, color: '#047857', fontSize: 12 },
-      { text: 'Vereda Aguas Frías', x: 260, y: 260, color: '#334155', fontSize: 13, bold: true },
-      { text: 'SECTOR MORRO PLAN (Estación Radar)', x: 430, y: 370, color: '#0f766e', fontSize: 13, bold: true },
-      { text: 'Finca La Esperanza', x: 240, y: 430, color: '#475569', fontSize: 12 },
-      { text: 'Corregimiento Altavista Central', x: 500, y: 530, color: '#1e293b', fontSize: 13, bold: true }
+      { text: 'ALTO EL ROMERAL (2,550 m)', x: 450, y: 45, lat: 6.2120, lng: -75.6350, color: '#064e3b', fontSize: 13, bold: true, googleMapsQuery: 'Alto El Romeral, Medellín, Antioquia', category: 'nacimiento', description: 'Cresta occidental y nacimiento de afluentes altos' },
+      { text: 'Vereda San José del Manzanillo', x: 530, y: 130, lat: 6.2110, lng: -75.6180, color: '#334155', fontSize: 12, googleMapsQuery: 'Vereda San José del Manzanillo, Medellín', category: 'sector', description: 'Corredor veredal sobre el cañón oriental' },
+      { text: 'Reserva Forestal Manzanillo', x: 210, y: 150, lat: 6.2140, lng: -75.6260, color: '#047857', fontSize: 12, googleMapsQuery: 'Reserva Forestal Manzanillo, Altavista, Medellín', category: 'sector', description: 'Zona de bosque y amortiguación hidrológica' },
+      { text: 'Vereda San Pablo', x: 260, y: 260, lat: 6.2238, lng: -75.6090, color: '#334155', fontSize: 13, bold: true, googleMapsQuery: 'Vereda San Pablo, Altavista, Medellín', category: 'sector', description: 'Sector residencial sobre la margen del cauce' },
+      { text: 'SECTOR PUENTE SAN PABLO (Calle 18)', x: 430, y: 370, lat: 6.2235, lng: -75.6095, color: '#0f766e', fontSize: 13, bold: true, googleMapsQuery: 'Puente San Pablo, Calle 18, Altavista, Medellín', category: 'puente', description: 'Punto de cruce vehicular y estación hidrológica SIATA' },
+      { text: 'Corregimiento Altavista Central (Parque Principal)', x: 500, y: 530, lat: 6.2210, lng: -75.6160, color: '#1e293b', fontSize: 13, bold: true, googleMapsQuery: 'Parque Principal de Altavista, Medellín', category: 'comunidad', description: 'Cabecera corregimental, centro cívico y de servicios' }
     ],
     sensors: [
       {
@@ -423,7 +512,7 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       },
       {
         id: 'sens-308',
-        name: 'Estación Radar Morro Plan',
+        name: 'Estación SIATA Puente San Pablo',
         code: 'SIATA-#308',
         elevation: 1820,
         x: 380,
@@ -453,8 +542,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       capacity: 600,
       x: 620,
       y: 450,
+      lat: 6.2215,
+      lng: -75.6165,
       address: 'Carrera 84 #18-35 (Frente al Parque Principal)',
-      contact: 'Bomberos Medellín: 119 / Central Comunitaria'
+      contact: 'Bomberos Medellín: 119 / Central Comunitaria',
+      googleMapsQuery: 'Coliseo Parroquial Altavista, Carrera 84 #18-35, Medellín'
     },
     incidentAlert: {
       text: 'Sensor Radar: Cauce normal con libre escorrentía',
@@ -465,18 +557,18 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     specificInstructions: [
       {
         step: 1,
-        title: 'Verifique los niveles en el puente de Aguas Frías',
-        desc: 'El caudal corre despejado con margen de 66 cm bajo el umbral de alerta.'
+        title: 'Verifique los niveles en Puente San Pablo y Sector Central',
+        desc: 'El cauce principal de Altavista corre despejado con margen de 66 cm bajo el umbral de alerta preventiva.'
       },
       {
         step: 2,
         title: 'Mantenga libres los canales de desagüe veredal',
-        desc: 'Evite arrojar residuos vegetales o bolsas de café a las zanjas de coronación.'
+        desc: 'Evite arrojar residuos vegetales o escombros a las zanjas y cunetas de coronación.'
       },
       {
         step: 3,
-        title: 'Punto de reunión en caso de incremento súbito',
-        desc: 'Diríjase por la Vía Principal hacia el Coliseo Parroquial de Altavista Central.'
+        title: 'Punto seguro de evacuación en caso de incremento súbito',
+        desc: 'Diríjase por la Vía Principal hacia el Coliseo Parroquial de Altavista Central (Cra. 84 #18-35).'
       }
     ]
   },
@@ -521,12 +613,12 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       { d: 'M 220 390 L 580 410 L 780 430', strokeWidth: 2 } // Vía Box-Culvert
     ],
     landmarks: [
-      { text: 'CERROS DEL PADRE AMAYA (2,620 m)', x: 130, y: 45, color: '#451a03', fontSize: 13, bold: true },
-      { text: 'Canteras Altas La Aurora', x: 180, y: 160, color: '#78350f', fontSize: 12 },
-      { text: 'SECTOR LADRILLERAS SAN JUDAS', x: 440, y: 240, color: '#9a3412', fontSize: 13, bold: true },
-      { text: 'Cruce Crítico Vía El Morro km 2.5', x: 520, y: 350, color: '#991b1b', fontSize: 13, bold: true },
-      { text: 'Box-Culvert Central de Mitigación', x: 620, y: 450, color: '#0369a1', fontSize: 13, bold: true },
-      { text: 'Escuela Rural Buenavista', x: 260, y: 460, color: '#065f46', fontSize: 12, bold: true }
+      { text: 'CERROS DEL PADRE AMAYA (2,620 m)', x: 130, y: 45, lat: 6.2425, lng: -75.6210, color: '#451a03', fontSize: 13, bold: true, googleMapsQuery: 'Cerro Padre Amaya, Medellín', category: 'nacimiento', description: 'Cumbres de alta montaña y origen de la quebrada' },
+      { text: 'Canteras Altas La Aurora', x: 180, y: 160, lat: 6.2410, lng: -75.6185, color: '#78350f', fontSize: 12, googleMapsQuery: 'Canteras Altavista, Medellín', category: 'sector', description: 'Zona de extracción y escorrentía rápida' },
+      { text: 'SECTOR LADRILLERAS SAN JUDAS', x: 440, y: 240, lat: 6.2395, lng: -75.6160, color: '#9a3412', fontSize: 13, bold: true, googleMapsQuery: 'Ladrillera San Judas, Altavista, Medellín', category: 'sector', description: 'Sector industrial y residencial de ladera' },
+      { text: 'Cruce Crítico Vía El Morro km 2.5', x: 520, y: 350, lat: 6.2380, lng: -75.6135, color: '#991b1b', fontSize: 13, bold: true, googleMapsQuery: 'Vía El Morro, Medellín', category: 'via', description: 'Paso vial con monitoreo de sedimentos' },
+      { text: 'Box-Culvert Central de Mitigación', x: 620, y: 450, lat: 6.2365, lng: -75.6105, color: '#0369a1', fontSize: 13, bold: true, googleMapsQuery: 'Box-Culvert Buenavista, Medellín', category: 'puente', description: 'Estructura hidráulica disipadora de energía' },
+      { text: 'Escuela Rural Buenavista', x: 260, y: 460, lat: 6.2385, lng: -75.6125, color: '#065f46', fontSize: 12, bold: true, googleMapsQuery: 'Escuela Buenavista, Altavista, Medellín', category: 'escuela', description: 'Sede comunitaria y zona de resguardo' }
     ],
     sensors: [
       {
@@ -574,8 +666,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       capacity: 300,
       x: 340,
       y: 450,
+      lat: 6.2385,
+      lng: -75.6125,
       address: 'Vereda Buenavista Sector Escolar (Zona Alta Segura)',
-      contact: 'Defensa Civil / Bomberos: 119'
+      contact: 'Defensa Civil / Bomberos: 119',
+      googleMapsQuery: 'Escuela Buenavista, Altavista, Medellín'
     },
     incidentAlert: {
       text: 'Alerta Roja: Arrastre masivo de lodo y piedras en canteras',
@@ -750,11 +845,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       { d: 'M 290 300 L 480 460', strokeWidth: 2 } // Vía El Jardín
     ],
     landmarks: [
-      { text: 'CUCHILLA EL BARCINO (2,300 m · Nacimiento)', x: 70, y: 100, color: '#1e293b', fontSize: 11.5, bold: true },
-      { text: 'VEREDA SAN JOSÉ DEL MANZANILLO', x: 280, y: 225, color: '#065f46', fontSize: 12, bold: true },
-      { text: 'VEREDA EL JARDÍN', x: 470, y: 335, color: '#065f46', fontSize: 12, bold: true },
-      { text: 'SECTOR LAS CAMELIAS', x: 640, y: 425, color: '#0f172a', fontSize: 11.5, bold: true },
-      { text: 'RETIRO HIDRÁULICO RODEO ALTO', x: 720, y: 490, color: '#0369a1', fontSize: 12, bold: true }
+      { text: 'CUCHILLA EL BARCINO (2,300 m · Nacimiento)', x: 70, y: 100, lat: 6.2075, lng: -75.6220, color: '#1e293b', fontSize: 11.5, bold: true, googleMapsQuery: 'Cuchilla El Barcino, Medellín', category: 'nacimiento', description: 'Origen cordillerano alto' },
+      { text: 'VEREDA SAN JOSÉ DEL MANZANILLO', x: 280, y: 225, lat: 6.2090, lng: -75.6185, color: '#065f46', fontSize: 12, bold: true, googleMapsQuery: 'Vereda San José del Manzanillo, Medellín', category: 'sector', description: 'Comunidad veredal principal' },
+      { text: 'VEREDA EL JARDÍN', x: 470, y: 335, lat: 6.2105, lng: -75.6150, color: '#065f46', fontSize: 12, bold: true, googleMapsQuery: 'Vereda El Jardín, Altavista, Medellín', category: 'sector', description: 'Sector de ladera con cultivos' },
+      { text: 'SECTOR LAS CAMELIAS', x: 640, y: 425, lat: 6.2120, lng: -75.6120, color: '#0f172a', fontSize: 11.5, bold: true, googleMapsQuery: 'Sector Las Camelias, Altavista, Medellín', category: 'sector', description: 'Zona residencial cercana al cauce' },
+      { text: 'RETIRO HIDRÁULICO RODEO ALTO', x: 720, y: 490, lat: 6.2135, lng: -75.6090, color: '#0369a1', fontSize: 12, bold: true, googleMapsQuery: 'Rodeo Alto, Medellín', category: 'sector', description: 'Franja de amortiguación urbana' }
     ],
     sensors: [
       {
@@ -776,8 +871,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
       capacity: 450,
       x: 390,
       y: 290,
+      lat: 6.2115,
+      lng: -75.6140,
       address: 'Vereda San José del Manzanillo (Cota Alta)',
-      contact: 'Comité Local de Emergencias: 312 400 7080'
+      contact: 'Comité Local de Emergencias: 312 400 7080',
+      googleMapsQuery: 'Placa Polideportiva San José del Manzanillo, Medellín'
     },
     specificInstructions: [
       {

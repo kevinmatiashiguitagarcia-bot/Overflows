@@ -24,12 +24,57 @@ export interface CitizenReportRecord {
   timestamp: string;
   createdAt: string;
   media: ReportMediaItem[];
-  status: 'pendiente_aprobacion' | 'aprobado' | 'rechazado';
+  status: 'pendiente_aprobacion' | 'aprobado' | 'rechazado' | 'requiere_revision_especial';
   verified: boolean;
   rejectionReason?: string;
+  specialReviewEmail?: string;
+  notifiedToAdmin?: boolean;
 }
 
 export const STORAGE_REPORTS_KEY = 'overflows_citizen_reports_moderated_v1';
+
+export function getQuebradaBySector(sector?: string): string {
+  if (!sector) return 'Quebrada Altavista';
+  const s = sector.toLowerCase();
+  if (
+    s.includes('aguas frías') ||
+    s.includes('aguas frias') ||
+    s.includes('morro plan') ||
+    s.includes('picacha') ||
+    s.includes('castillo') ||
+    s.includes('brisas')
+  ) {
+    return 'Quebrada La Picacha / Aguas Frías';
+  }
+  if (s.includes('esperanza') || s.includes('chispero') || s.includes('cañada')) {
+    return 'Quebrada Las Cañadas';
+  }
+  if (
+    s.includes('morro') ||
+    s.includes('corazón') ||
+    s.includes('buenavista') ||
+    s.includes('judas') ||
+    s.includes('amaya')
+  ) {
+    return 'Quebrada Buenavista';
+  }
+  if (
+    s.includes('manzanillo') ||
+    s.includes('jardín') ||
+    s.includes('guayabala') ||
+    s.includes('camelias') ||
+    s.includes('rodeo')
+  ) {
+    return 'Quebrada La Guayabala';
+  }
+  if (s.includes('pelon') || s.includes('pelón')) {
+    return 'Quebrada El Pelón';
+  }
+  if (s.includes('ana diaz') || s.includes('ana díaz')) {
+    return 'Quebrada Ana Díaz';
+  }
+  return 'Quebrada Altavista';
+}
 
 export function getStoredReports(): CitizenReportRecord[] {
   try {
@@ -61,25 +106,32 @@ export function createCitizenReport(reportData: {
   userRole: string;
   userEmail?: string;
   sector: string;
-  quebrada: string;
+  quebrada?: string;
   level: 'bajo_muro' | 'al_puente' | 'desbordada';
   description: string;
   media: ReportMediaItem[];
+  status?: 'pendiente_aprobacion' | 'requiere_revision_especial';
 }): CitizenReportRecord {
+  const finalStatus = reportData.status || 'pendiente_aprobacion';
+  const finalQuebrada = reportData.quebrada || getQuebradaBySector(reportData.sector);
+
   const newReport: CitizenReportRecord = {
     id: `rep-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     userName: reportData.userName,
     userRole: reportData.userRole,
     userEmail: reportData.userEmail,
     sector: reportData.sector,
-    quebrada: reportData.quebrada,
+    quebrada: finalQuebrada,
     level: reportData.level,
     description: reportData.description,
     timestamp: 'Justo ahora',
     createdAt: new Date().toISOString(),
     media: reportData.media,
-    status: 'pendiente_aprobacion', // Must be verified and approved by admin before public listing
-    verified: false
+    status: finalStatus,
+    verified: false,
+    specialReviewEmail:
+      finalStatus === 'requiere_revision_especial' ? 'overflowsoficial01@gmail.com' : undefined,
+    notifiedToAdmin: finalStatus === 'requiere_revision_especial'
   };
 
   const current = getStoredReports();
