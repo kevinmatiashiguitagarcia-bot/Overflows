@@ -43,17 +43,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'inicio' as const,
       label: isAdmin ? t('nav.dashboard_admin') : t('nav.dashboard'),
-      sublabel: isAdmin ? 'Red SIATA Comuna 70' : 'Telemetría y Estado',
+      sublabel: isAdmin
+        ? (language === 'en' ? 'SIATA Comuna 70 Network' : 'Red SIATA Comuna 70')
+        : (language === 'en' ? 'Telemetry & Status' : 'Telemetría y Estado'),
       icon: Activity,
-      badge: isAdmin ? 'Admin' : 'Exclusivo',
+      badge: isAdmin ? 'Admin' : (language === 'en' ? 'Exclusive' : 'Exclusivo'),
       badgeColor: isAdmin ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-slate-800 text-slate-300 border-slate-700'
     },
     {
       id: 'mapa' as const,
       label: t('nav.map'),
-      sublabel: isAdmin ? 'Radares y Cuencas Altavista' : 'Sector Residencial',
+      sublabel: isAdmin
+        ? (language === 'en' ? 'Radars & Altavista Basins' : 'Radares y Cuencas Altavista')
+        : (language === 'en' ? 'Residential Sector' : 'Sector Residencial'),
       icon: MapPin,
-      badge: 'En Vivo',
+      badge: language === 'en' ? 'Live' : 'En Vivo',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
     },
     {
@@ -124,10 +128,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">Red SIATA Comuna 70</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                {language === 'en' ? 'SIATA Comuna 70 Network' : 'Red SIATA Comuna 70'}
+              </span>
             </div>
             <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono text-xs border border-emerald-200 dark:border-emerald-800/60 font-bold">
-              {t('status.normal') || 'Normal'}
+              {t('status.normal') || (language === 'en' ? 'Normal' : 'Normal')}
             </span>
           </div>
         )}
@@ -136,7 +142,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
           {!collapsed && (
             <div className="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Navegación Principal
+              {language === 'en' ? 'Main Navigation' : 'Navegación Principal'}
             </div>
           )}
 
@@ -203,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-800/80 space-y-2">
               {!collapsed && (
                 <div className="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Mi Cuenta
+                  {language === 'en' ? 'My Account' : 'Mi Cuenta'}
                 </div>
               )}
 
@@ -241,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`flex items-center gap-2.5 overflow-hidden text-left hover:opacity-90 cursor-pointer ${
                     collapsed ? 'justify-center w-full' : ''
                   }`}
-                  title="Opciones de cuenta"
+                  title={language === 'en' ? 'Account options' : 'Opciones de cuenta'}
                 >
                   <div className="w-9 h-9 rounded-xl bg-[#8B0000] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-red-400/30 overflow-hidden shadow-2xs">
                     {currentUser.avatarUrl ? (

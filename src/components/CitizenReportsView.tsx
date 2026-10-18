@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCuenca } from '../context/CuencaContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import {
   CitizenReportRecord,
@@ -13,38 +14,45 @@ import {
 } from '../data/reportsService';
 import {
   validateReportEnvironmentImage,
-  validateReportTextNLP
+  validateReportTextNLP,
+  EXACT_AI_IMAGE_REJECTION_MSG,
+  EXACT_AI_IMAGE_REJECTION_MSG_EN
 } from '../utils/reportAiValidator';
 import {
   MessageSquareWarning,
   Camera,
-  Video,
   Upload,
   AlertTriangle,
   CheckCircle2,
   X,
   Send,
   MapPin,
-  Waves,
   ShieldCheck,
-  ShieldAlert,
   Clock,
-  Eye,
   Check,
   Ban,
   Trash2,
   ExternalLink,
-  Filter,
-  Sparkles,
+  Compass,
+  Lock,
   Loader2,
-  Building
+  Home
 } from 'lucide-react';
 
 export const CitizenReportsView: React.FC = () => {
   const { currentUser } = useAuth();
   const { t, language } = useThemeLanguage();
-  const isAdmin = currentUser?.role === 'administrador' || currentUser?.email === 'overflowsoficial01@gmail.com';
+  const {
+    selectedCuencaId,
+    activeCuenca,
+    assignedCuenca,
+    isExploring,
+    resetToAssigned,
+    canSubmitReports,
+    availableCuencas
+  } = useCuenca();
 
+  const isAdmin = currentUser?.role === 'administrador' || currentUser?.email === 'overflowsoficial01@gmail.com';
   const userSector = currentUser?.barrioSector || 'Sector Morro Plan';
   const userQuebrada = getQuebradaBySector(userSector);
 
@@ -60,8 +68,10 @@ export const CitizenReportsView: React.FC = () => {
   // Admin filter tab: 'pendientes' | 'especial' | 'aprobados' | 'todos'
   const [adminTab, setAdminTab] = useState<'pendientes' | 'especial' | 'aprobados' | 'todos'>('pendientes');
 
-  // Citizen Basin Filter: 'mi_cuenca' (strictly user's zone) or 'todas'
-  const [basinFilter, setBasinFilter] = useState<'mi_cuenca' | 'todas'>('mi_cuenca');
+  // Filter for reports stream: 'activa' (basin currently selected), 'mi_cuenca' (assigned), 'todas'
+  const [streamFilter, setStreamFilter] = useState<'activa' | 'mi_cuenca' | 'todas'>(
+    isExploring ? 'activa' : 'mi_cuenca'
+  );
 
   // Reports state
   const [reports, setReports] = useState<CitizenReportRecord[]>(() => getStoredReports());
@@ -75,6 +85,13 @@ export const CitizenReportsView: React.FC = () => {
     return () => window.removeEventListener('overflows_reports_updated', handleSync);
   }, []);
 
+  // Sync stream filter when exploration changes
+  useEffect(() => {
+    if (isExploring) {
+      setStreamFilter('activa');
+    }
+  }, [isExploring, selectedCuencaId]);
+
   // Handle file uploads with Vision AI validation in background
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -86,28 +103,31 @@ export const CitizenReportsView: React.FC = () => {
     const fileList = Array.from(files) as File[];
     const newMediaList: ReportMediaItem[] = [];
 
+    const rejectionMessage =
+      language === 'en' ? EXACT_AI_IMAGE_REJECTION_MSG_EN : EXACT_AI_IMAGE_REJECTION_MSG;
+
     for (const file of fileList) {
       const isVideo = file.type.startsWith('video');
       const isImage = file.type.startsWith('image');
 
       if (!isImage && !isVideo) {
-        setValidationError(t('reports.formats_hint', 'Solo se permiten archivos de imagen (JPG, PNG) o video (MP4, MOV).'));
+        setValidationError(
+          language === 'en'
+            ? 'Only image (JPG, PNG) or video (MP4, MOV) files are allowed.'
+            : 'Solo se permiten archivos de imagen (JPG, PNG) o video (MP4, MOV).'
+        );
         continue;
       }
 
-      if (isImage) {
+      if (isImage || isVideo) {
         try {
           const aiValidation = await validateReportEnvironmentImage(file);
           if (!aiValidation.isValid) {
-            if (aiValidation.isFaceDetected) {
-              setValidationError(t('reports.ai_face_detected_err'));
-            } else {
-              setValidationError(t('reports.ai_not_hydrological_err'));
-            }
-            continue; // Reject face or non-hydrological photo
+            setValidationError(rejectionMessage);
+            continue; // Strictly reject faces, personal objects, or non-hydrological scenes
           }
         } catch {
-          // Fallback allow
+          // Fallback allow if runtime canvas fails
         }
       }
 
@@ -138,6 +158,16 @@ export const CitizenReportsView: React.FC = () => {
     e.preventDefault();
     setValidationError(null);
 
+    // Enforce role restriction: non-admins cannot submit outside their assigned residence
+    if (!canSubmitReports && !isAdmin) {
+      setValidationError(
+        language === 'en'
+          ? `Report submission restricted: You can only submit reports for your official residence (${assignedCuenca.name} Stream).`
+          : `Restricción de envío: Únicamente puedes emitir reportes para tu sector de residencia oficial (Quebrada ${assignedCuenca.name}).`
+      );
+      return;
+    }
+
     // Mandatory photo/video verification
     if (attachments.length === 0) {
       setValidationError(t('reports.media_required'));
@@ -145,11 +175,15 @@ export const CitizenReportsView: React.FC = () => {
     }
 
     if (!description.trim()) {
-      setValidationError(t('reports.fill_required_notes', 'Por favor describe la situación observada en el cauce.'));
+      setValidationError(
+        language === 'en'
+          ? 'Please describe the observed stream conditions.'
+          : 'Por favor describe la situación observada en el cauce.'
+      );
       return;
     }
 
-    // 1. NLP Text Moderation
+    // 1. NLP Text Moderation & Profanity Filtering
     const nlp = validateReportTextNLP(description);
 
     // If vulgar language -> block submission immediately
@@ -159,7 +193,9 @@ export const CitizenReportsView: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const assignedQuebrada = getQuebradaBySector(userSector);
+    const assignedQuebrada = isAdmin
+      ? activeCuenca.name
+      : getQuebradaBySector(userSector);
     const isSpecialReview = nlp.requiresSpecialReview;
 
     setTimeout(() => {
@@ -208,11 +244,15 @@ export const CitizenReportsView: React.FC = () => {
   const pendingReports = reports.filter((r) => r.status === 'pendiente_aprobacion');
   const specialReviewReports = reports.filter((r) => r.status === 'requiere_revision_especial');
   const approvedReports = reports.filter((r) => r.status === 'aprobado');
-  const rejectedReports = reports.filter((r) => r.status === 'rechazado');
 
-  // Filtered approved reports for community display (segmented strictly by user's quebrada)
+  // Filtered approved reports for community display
   const userBasinApprovedReports = approvedReports.filter((r) => {
-    if (basinFilter === 'todas' || isAdmin) return true;
+    if (streamFilter === 'todas' || isAdmin) return true;
+    if (streamFilter === 'activa') {
+      const activeName = activeCuenca.name.toLowerCase();
+      return r.quebrada.toLowerCase().includes(activeName) || activeName.includes(r.quebrada.toLowerCase());
+    }
+    // mi_cuenca
     return r.quebrada === userQuebrada || r.sector === userSector;
   });
 
@@ -472,193 +512,251 @@ export const CitizenReportsView: React.FC = () => {
         </div>
       )}
 
-      {/* User Submission Form */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 transition-colors">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white">
-              {t('reports.new_button')}
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t('reports.review_prior_notice')}
-            </p>
+      {/* RESTRICCIÓN DE ENVÍO Y MODO EXPLORACIÓN (Requerimiento Técnico 2) */}
+      {isExploring && !isAdmin ? (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border-2 border-amber-300 dark:border-amber-900/70 shadow-sm space-y-4 transition-colors">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/40">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
+                  {t('dashboard.exploration_mode_badge')}
+                </span>
+                <span className="text-xs font-bold text-slate-400">
+                  {language === 'en' ? 'Read-only Mode' : 'Modo Solo Lectura'}
+                </span>
+              </div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white mt-1">
+                {language === 'en'
+                  ? 'Report Submission Disabled in Exploration Mode'
+                  : 'Envío de Reportes Desactivado en Modo Exploración'}
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                {language === 'en'
+                  ? `Community Restriction: You are currently exploring ${activeCuenca.name} Stream. You can only submit reports for your officially assigned residential basin (${assignedCuenca.name} Stream · ${userSector}).`
+                  : `Restricción Comunitaria: Actualmente estás explorando la Quebrada ${activeCuenca.name}. Únicamente se permite emitir reportes dentro de la cuenca asignada a tu perfil oficial (${assignedCuenca.name} · ${userSector}).`}
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={resetToAssigned}
+              className="px-4 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
+            >
+              <Home className="w-4 h-4" />
+              <span>{t('dashboard.return_to_my_stream')}</span>
+            </button>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              {language === 'en'
+                ? 'You can consult verified historical reports below in read-only mode.'
+                : 'Puedes consultar los reportes históricos verificados abajo en modo de solo lectura.'}
+            </span>
           </div>
         </div>
-
-        {submitFeedback && (
-          <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs sm:text-sm font-bold flex items-start gap-3 animate-in fade-in">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-            <span>{submitFeedback}</span>
-          </div>
-        )}
-
-        {validationError && (
-          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs sm:text-sm font-medium flex items-start gap-3 animate-in fade-in">
-            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            <span>{validationError}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* River Level Selector */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2">
-              {t('reports.level_label')}
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setLevel('bajo_muro')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  level === 'bajo_muro'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20'
-                    : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <div className="font-extrabold text-xs">{t('reports.level_bajo_muro')}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {t('reports.level_bajo_muro_desc')}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setLevel('al_puente')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  level === 'al_puente'
-                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20'
-                    : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <div className="font-extrabold text-xs">{t('reports.level_al_puente')}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {t('reports.level_al_puente_desc')}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setLevel('desbordada')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  level === 'desbordada'
-                    ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-900 dark:text-rose-200 ring-2 ring-rose-500/20'
-                    : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <div className="font-extrabold text-xs">{t('reports.level_desbordada')}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {t('reports.level_desbordada_desc')}
-                </div>
-              </button>
+      ) : (
+        /* User Submission Form (Active for assigned basin or Admin) */
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 transition-colors">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                {t('reports.new_button')}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {t('reports.review_prior_notice')}
+              </p>
             </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>{language === 'en' ? `${assignedCuenca.name} Stream` : `Quebrada ${assignedCuenca.name}`}</span>
+            </span>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
-              {t('reports.desc_label')}
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('reports.desc_placeholder')}
-              rows={3}
-              required
-              className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-600 focus:outline-hidden resize-none"
-            />
-          </div>
-
-          {/* Mandatory Multimedia Evidence with AI Vision Filter */}
-          <div className="p-4 rounded-2xl bg-red-50/60 dark:bg-slate-800/60 border-2 border-dashed border-red-300 dark:border-red-900/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-[#8B0000] dark:text-red-400" />
-                <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                  {t('reports.photos_or_videos')} <span className="text-[#8B0000] dark:text-red-400 font-extrabold">{t('reports.mandatory_tag')}</span>
-                </span>
-              </div>
-              <span className="text-xs font-bold text-red-700 dark:text-red-400">
-                {t('reports.photos_or_videos')}
-              </span>
+          {submitFeedback && (
+            <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs sm:text-sm font-bold flex items-start gap-3 animate-in fade-in">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <span>{submitFeedback}</span>
             </div>
+          )}
 
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              {t('reports.photos_or_videos_rule')}
-            </p>
+          {validationError && (
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs sm:text-sm font-medium flex items-start gap-3 animate-in fade-in">
+              <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <span>{validationError}</span>
+            </div>
+          )}
 
-            <div className="flex items-center gap-3">
-              <label className="py-2.5 px-4 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-2xs">
-                {isValidatingMedia ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Upload className="w-4 h-4" />
-                )}
-                <span>
-                  {isValidatingMedia ? t('reports.ai_validating_image') : t('reports.select_files_button')}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  disabled={isValidatingMedia}
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* River Level Selector */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2">
+                {t('reports.level_label')}
               </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setLevel('bajo_muro')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    level === 'bajo_muro'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="font-extrabold text-xs">{t('reports.level_bajo_muro')}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {t('reports.level_bajo_muro_desc')}
+                  </div>
+                </button>
 
-              <span className="text-xs text-slate-500 font-mono">
-                {attachments.length} {t('reports.attached_files_count')}
-              </span>
+                <button
+                  type="button"
+                  onClick={() => setLevel('al_puente')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    level === 'al_puente'
+                      ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20'
+                      : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="font-extrabold text-xs">{t('reports.level_al_puente')}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {t('reports.level_al_puente_desc')}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLevel('desbordada')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    level === 'desbordada'
+                      ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-900 dark:text-rose-200 ring-2 ring-rose-500/20'
+                      : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="font-extrabold text-xs">{t('reports.level_desbordada')}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {t('reports.level_desbordada_desc')}
+                  </div>
+                </button>
+              </div>
             </div>
 
-            {/* Attachments List */}
-            {attachments.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                {attachments.map((att) => (
-                  <div
-                    key={att.id}
-                    className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 h-24 flex items-center justify-center"
-                  >
-                    {att.type === 'video' ? (
-                      <video src={att.url} className="w-full h-full object-cover" />
-                    ) : (
-                      <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
-                    )}
+            {/* Description */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">
+                {t('reports.desc_label')}
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t('reports.desc_placeholder')}
+                rows={3}
+                required
+                className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-600 focus:outline-hidden resize-none"
+              />
+            </div>
 
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-2">
-                      <span className="text-xs font-bold text-white px-2 py-0.5 rounded bg-black/60">
-                        {att.type === 'video' ? t('reports.media_label_video') : t('reports.media_label_photo')}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttachment(att.id)}
-                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-red-600 text-white hover:bg-red-700 cursor-pointer"
-                      title={t('reports.admin_delete_file')}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+            {/* Mandatory Multimedia Evidence with AI Vision Filter */}
+            <div className="p-4 rounded-2xl bg-red-50/60 dark:bg-slate-800/60 border-2 border-dashed border-red-300 dark:border-red-900/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-[#8B0000] dark:text-red-400" />
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    {t('reports.photos_or_videos')} <span className="text-[#8B0000] dark:text-red-400 font-extrabold">{t('reports.mandatory_tag')}</span>
+                  </span>
+                </div>
+                <span className="text-xs font-bold text-red-700 dark:text-red-400">
+                  {t('reports.required_for_sending')}
+                </span>
               </div>
-            )}
-          </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || isValidatingMedia || attachments.length === 0}
-            className={`w-full py-3.5 px-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
-              attachments.length > 0 && !isSubmitting && !isValidatingMedia
-                ? 'bg-[#8B0000] hover:bg-[#720000]'
-                : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-75'
-            }`}
-          >
-            <Send className="w-4 h-4" />
-            <span>{isSubmitting ? t('reports.submitting') : t('reports.submit_button')}</span>
-          </button>
-        </form>
-      </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                {t('reports.upload_instructions')}
+              </p>
+
+              {/* Upload Action */}
+              <div className="flex items-center gap-3 pt-1">
+                <label className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs ${
+                  isValidatingMedia
+                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 cursor-wait'
+                    : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
+                }`}>
+                  {isValidatingMedia ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                  ) : (
+                    <Upload className="w-4 h-4 text-[#8B0000]" />
+                  )}
+                  <span>
+                    {isValidatingMedia
+                      ? (language === 'en' ? 'Analyzing with AI...' : 'Analizando con IA...')
+                      : t('reports.attach_evidence')}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    disabled={isValidatingMedia}
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                <span className="text-xs text-slate-500 font-mono">
+                  {attachments.length} {t('reports.attached_files_count')}
+                </span>
+              </div>
+
+              {/* Attachments List */}
+              {attachments.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  {attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 h-24 flex items-center justify-center"
+                    >
+                      {att.type === 'video' ? (
+                        <video src={att.url} className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                      )}
+
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-2">
+                        <span className="text-xs font-bold text-white px-2 py-0.5 rounded bg-black/60">
+                          {att.type === 'video' ? t('reports.media_label_video') : t('reports.media_label_photo')}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        className="absolute top-1.5 right-1.5 p-1 rounded-full bg-red-600 text-white hover:bg-red-700 cursor-pointer"
+                        title={t('reports.admin_delete_file')}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || isValidatingMedia || attachments.length === 0}
+              className={`w-full py-3.5 px-4 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer ${
+                attachments.length > 0 && !isSubmitting && !isValidatingMedia
+                  ? 'bg-[#8B0000] hover:bg-[#720000]'
+                  : 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-75'
+              }`}
+            >
+              <Send className="w-4 h-4" />
+              <span>{isSubmitting ? t('reports.submitting') : t('reports.submit_button')}</span>
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* User's Own Pending Reports Notification */}
       {userPendingReports.length > 0 && !isAdmin && (
@@ -673,7 +771,7 @@ export const CitizenReportsView: React.FC = () => {
         </div>
       )}
 
-      {/* Public Verified Community Reports Stream (Segmented strictly by user's quebrada) */}
+      {/* Public Verified Community Reports Stream */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -682,18 +780,35 @@ export const CitizenReportsView: React.FC = () => {
               <span>{t('reports.verified_reports_title')}</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t('reports.my_quebrada_reports_only')}{' '}
-              <strong className="text-slate-800 dark:text-slate-200">{userQuebrada}</strong>
+              {streamFilter === 'activa'
+                ? (language === 'en' ? `Viewing reports for: ${activeCuenca.name} Stream` : `Visualizando reportes de: Quebrada ${activeCuenca.name}`)
+                : streamFilter === 'mi_cuenca'
+                ? (language === 'en' ? `My official sector: ${userQuebrada}` : `Mi sector oficial: ${userQuebrada}`)
+                : (language === 'en' ? 'All historical Comuna 70 reports' : 'Todos los reportes históricos de la Comuna 70')}
             </p>
           </div>
 
           {/* Basin Filter Toggle for Residents */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isExploring && (
+              <button
+                type="button"
+                onClick={() => setStreamFilter('activa')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  streamFilter === 'activa'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {language === 'en' ? `${activeCuenca.name} Stream` : `Quebrada ${activeCuenca.name}`}
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => setBasinFilter('mi_cuenca')}
+              onClick={() => setStreamFilter('mi_cuenca')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                basinFilter === 'mi_cuenca'
+                streamFilter === 'mi_cuenca'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
               }`}
@@ -702,9 +817,9 @@ export const CitizenReportsView: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setBasinFilter('todas')}
+              onClick={() => setStreamFilter('todas')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                basinFilter === 'todas'
+                streamFilter === 'todas'
                   ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
               }`}
@@ -753,40 +868,51 @@ export const CitizenReportsView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{t('reports.approved_badge')}</span>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        report.level === 'desbordada'
+                          ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                          : report.level === 'al_puente'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}
+                    >
+                      {report.level === 'desbordada'
+                        ? t('reports.level_desbordada')
+                        : report.level === 'al_puente'
+                        ? t('reports.level_al_puente')
+                        : t('reports.level_bajo_muro')}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      {report.timestamp}
-                    </span>
+                    <span className="text-xs font-mono text-slate-400">{report.timestamp}</span>
                   </div>
                 </div>
 
-                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                   {report.description}
                 </p>
 
-                {/* Evidence thumbnails */}
+                {/* Media evidence */}
                 {report.media && report.media.length > 0 && (
-                  <div className="flex items-center gap-2.5 pt-1 overflow-x-auto">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
                     {report.media.map((item) => (
                       <div
                         key={item.id}
-                        className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 w-24 h-24 bg-black shrink-0"
+                        className="relative group rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black aspect-video flex items-center justify-center"
                       >
                         {item.type === 'video' ? (
-                          <video src={item.url} className="w-full h-full object-cover" />
+                          <video src={item.url} controls className="w-full h-full object-cover" />
                         ) : (
                           <img src={item.url} alt={item.name} className="w-full h-full object-cover" />
                         )}
+
                         <a
                           href={item.url}
                           target="_blank"
-                          rel="noreferrer"
-                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
+                          rel="noopener noreferrer"
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          title={language === 'en' ? 'Open media file' : 'Abrir archivo multimedia'}
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       </div>
                     ))}

@@ -5,13 +5,12 @@ import {
   PhoneCall,
   CheckCircle2,
   Package,
-  Home,
-  BellRing,
-  ExternalLink,
+  Waves,
   MapPin,
-  Waves
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import { QUEBRADAS_MAP_DATA, getPointGoogleMapsUrl } from '../data/quebradaMapsData';
 
 interface RecomendacionesModalProps {
@@ -26,6 +25,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
   selectedCuencaId
 }) => {
   const { currentUser } = useAuth();
+  const { t, language } = useThemeLanguage();
 
   if (!isOpen) return null;
 
@@ -48,6 +48,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
 
   const cuencaConfig = QUEBRADAS_MAP_DATA[activeId] || QUEBRADAS_MAP_DATA['la-picacha'] || QUEBRADAS_MAP_DATA['altavista'];
   const evacPoint = cuencaConfig.evacuationPoint;
+  const streamName = language === 'en' ? `${cuencaConfig.name} Stream` : `Quebrada ${cuencaConfig.name}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs animate-in fade-in transition-colors">
@@ -61,17 +62,17 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
-                  Sector {currentUser?.barrioSector || cuencaConfig.name}
+                  {t('recom.subtitle_prefix')} {currentUser?.barrioSector || cuencaConfig.name}
                 </span>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Protocolo Hidrológico
+                  {t('recom.protocol')}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white mt-1">
-                Recomendaciones
+                {t('recom.title')}
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 font-medium">
-                Pautas hiperlocales de protección y resguardo para Quebrada {cuencaConfig.name}
+                {t('recom.guidelines_desc')} {streamName}
               </p>
             </div>
           </div>
@@ -79,7 +80,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Cerrar ventana"
+            title={language === 'en' ? 'Close window' : 'Cerrar ventana'}
           >
             <X className="w-5 h-5" />
           </button>
@@ -91,7 +92,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
           <div className="space-y-3.5">
             <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               <Waves className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <span>Acciones Preventivas en la Quebrada</span>
+              <span>{t('recom.preventive_actions')}</span>
             </div>
 
             {cuencaConfig.specificInstructions.map((instruction) => (
@@ -119,10 +120,10 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Morral de Emergencia Familiar
+                  {t('recom.emergency_kit_title')}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                  Tenga a mano copias plastificadas de documentos, linterna con baterías de repuesto, botiquín básico y agua potable.
+                  {t('recom.emergency_kit_desc')}
                 </p>
               </div>
             </div>
@@ -133,10 +134,10 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Lugar Seguro Verificado del Sector</span>
+                <span>{t('recom.safe_place_title')}</span>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-200 dark:border-emerald-700">
-                100% Georreferenciado
+                {t('recom.georeferenced')}
               </span>
             </div>
 
@@ -149,7 +150,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
                 <span>{evacPoint.address}</span>
               </p>
               <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
-                Capacidad de albergue: <strong className="font-mono">{evacPoint.capacity} personas</strong> · {evacPoint.contact}
+                {t('recom.capacity_label')} <strong className="font-mono">{evacPoint.capacity} {language === 'en' ? 'people' : 'personas'}</strong> · {evacPoint.contact}
               </p>
             </div>
 
@@ -161,7 +162,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
                 className="py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>Ver Punto Exacto en Google Maps</span>
+                <span>{t('recom.view_gmaps')}</span>
               </a>
             </div>
           </div>
@@ -170,10 +171,10 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
           <div className="p-4 rounded-2xl bg-red-950 dark:bg-red-950 text-white flex flex-col sm:flex-row items-center justify-between gap-4 border border-red-900/80 shadow-xs">
             <div className="text-center sm:text-left">
               <div className="text-[11px] font-bold text-red-300 uppercase tracking-wide">
-                Línea Directa de Auxilio y Rescate Comuna 70
+                {t('recom.hotline_title')}
               </div>
               <div className="text-lg sm:text-xl font-black font-mono mt-0.5">
-                Bomberos Medellín · 119
+                {t('recom.hotline_body')}
               </div>
             </div>
 
@@ -183,7 +184,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
                 className="px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
               >
                 <PhoneCall className="w-3.5 h-3.5" />
-                <span>Marcar 119 Bomberos</span>
+                <span>{t('recom.call_119')}</span>
               </a>
             </div>
           </div>
@@ -195,7 +196,7 @@ export const RecomendacionesModal: React.FC<RecomendacionesModalProps> = ({
             onClick={onClose}
             className="px-6 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold hover:bg-slate-800 dark:hover:bg-white transition-colors cursor-pointer"
           >
-            Entendido
+            {t('recom.understood')}
           </button>
         </div>
       </div>

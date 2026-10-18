@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { RealisticGisMap, MapActiveLayers, MapTargetCoordinate } from './RealisticGisMap';
-import { CUENCAS_LIST } from '../data/cuencasData';
-import { GIS_QUEBRADAS } from '../data/gisQuebradasData';
 import {
   QUEBRADAS_MAP_DATA,
   COMUNA_70_QUEBRADAS_NETWORK,
@@ -10,26 +8,14 @@ import {
   getPointGoogleMapsUrl,
   getPointGoogleMapsDirectionsUrl
 } from '../data/quebradaMapsData';
-import {
-  calculateLiveSiataReading,
-  toggleSiataRainEvent,
-  getSiataWeatherMode
-} from '../data/siataTelemetryService';
+import { GIS_QUEBRADAS } from '../data/gisQuebradasData';
+import { calculateLiveSiataReading } from '../data/siataTelemetryService';
 import {
   Radio,
-  CloudRain,
-  Layers,
   MapPin,
-  Send,
   ShieldAlert,
-  ShieldCheck,
   CheckCircle2,
-  Activity,
   Compass,
-  Mountain,
-  Gauge,
-  Clock,
-  TrendingUp,
   X,
   ExternalLink,
   Navigation,
@@ -37,8 +23,6 @@ import {
   Waves,
   ChevronDown,
   Home,
-  Lock,
-  ArrowLeft,
   AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -80,13 +64,11 @@ export function getUserSectorCoordinates(sectorName?: string): { cuencaId: strin
 
 interface LiveRiskMapViewProps {
   initialCuencaId?: string;
-  onOpenReportModal?: () => void;
   onNavigateToProfile?: () => void;
 }
 
 export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
   initialCuencaId,
-  onOpenReportModal,
   onNavigateToProfile
 }) => {
   const { currentUser } = useAuth();
@@ -98,10 +80,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
     assignedCuenca,
     isExploring,
     isAdmin,
-    canSubmitReports,
     resetToAssigned,
-    isRaining,
-    toggleRain,
     telemetryTick,
     availableCuencas
   } = useCuenca();
@@ -129,14 +108,12 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
     }
   }, [initialCuencaId]);
 
-  // Streamlined active layers: Strictly Flood and Evacuation (SIATA stations removed)
+  // Streamlined active layers: Strictly Flood and Evacuation
   const [activeLayers, setActiveLayers] = useState<MapActiveLayers>({
     inundacion: true,
     evacuacion: true
   });
 
-  const [selectedEvacPoint, setSelectedEvacPoint] = useState<QuebradaEvacuationPoint | null>(null);
-  const [selectedLandmark, setSelectedLandmark] = useState<QuebradaLandmark | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [showMapsQuickList, setShowMapsQuickList] = useState<boolean>(false);
   const [mapTargetCoordinate, setMapTargetCoordinate] = useState<MapTargetCoordinate | null>(null);
@@ -147,10 +124,6 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
   // 1. Motor de Telemetría Oficial SIATA en Tiempo Real
   const liveTelemetry = calculateLiveSiataReading(activeCuencaId, telemetryTick);
 
-  const handleToggleRain = () => {
-    toggleRain();
-  };
-
   // Retrieve dedicated data for selected quebrada
   const currentMap =
     QUEBRADAS_MAP_DATA[activeCuencaId] ||
@@ -160,8 +133,6 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
 
   const handleSelectQuebrada = (id: string) => {
     setSelectedCuencaId(id);
-    setSelectedEvacPoint(null);
-    setSelectedLandmark(null);
     setSelectedBranchId(null);
     setStreamSelectorOpen(false);
   };
@@ -177,10 +148,10 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Microcuencas:
+                {language === 'en' ? 'Micro-basins:' : 'Microcuencas:'}
               </span>
               <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200 dark:border-indigo-800">
-                Admin · Control Total
+                {t('dashboard.admin_full_control')}
               </span>
             </div>
 
@@ -198,7 +169,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                   <button
                     key={cuenca.id}
                     onClick={() => handleSelectQuebrada(cuenca.id)}
-                    title={`Desplegar zona y mapa de Quebrada ${cuenca.name}`}
+                    title={language === 'en' ? `Display area and map for ${cuenca.name} Stream` : `Desplegar zona y mapa de Quebrada ${cuenca.name}`}
                     className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs ring-2 ring-slate-900/20 dark:ring-white/20'
@@ -239,7 +210,11 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    {isExploring ? t('dashboard.exploration_mode_badge') : 'Cuenca Asignada (Residencia)'}
+                    {isExploring
+                      ? t('dashboard.exploration_mode_badge')
+                      : language === 'en'
+                      ? 'Assigned Basin (Residence)'
+                      : 'Cuenca Asignada (Residencia)'}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -248,7 +223,9 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                         : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                     }`}
                   >
-                    {isExploring ? 'Modo Consulta' : 'Monitoreo Activo'}
+                    {isExploring
+                      ? (language === 'en' ? 'Consultation Mode' : 'Modo Consulta')
+                      : (language === 'en' ? 'Active Monitoring' : 'Monitoreo Activo')}
                   </span>
                 </div>
                 <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
@@ -299,31 +276,18 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                                 : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                             }`}
                           >
-                            <div className="pr-2 truncate">
-                              <div className="font-bold flex items-center gap-1.5 truncate">
-                                <span className={`w-2 h-2 rounded-full ${statusDotColor} shrink-0`} />
-                                {isHome && <Home className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                                <span className="truncate">
-                                  {language === 'en' ? `${c.name} Stream` : `Quebrada ${c.name}`}
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${statusDotColor}`} />
+                              <span className="font-bold">
+                                {language === 'en' ? `${c.name} Stream` : `Quebrada ${c.name}`}
+                              </span>
+                              {isHome && (
+                                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
+                                  {language === 'en' ? 'My Sector' : 'Mi Sector'}
                                 </span>
-                              </div>
-                              <div className={`text-[10px] truncate ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
-                                {c.sector}
-                              </div>
+                              )}
                             </div>
-                            <span
-                              className={`px-2 py-0.5 rounded-md font-mono font-bold text-[10px] shrink-0 ${
-                                isSelected
-                                  ? 'bg-white/20 text-white'
-                                  : c.capacityPercentage >= 75
-                                  ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
-                                  : c.capacityPercentage >= 50
-                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
-                                  : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                              }`}
-                            >
-                              {c.capacityPercentage}%
-                            </span>
+                            <span className="font-mono text-[11px] opacity-80">{c.capacityPercentage}%</span>
                           </button>
                         );
                       })}
@@ -332,15 +296,14 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 )}
               </div>
 
-              {/* If exploring, show button to return to home stream */}
+              {/* Button to quickly reset to official assigned basin */}
               {isExploring && (
                 <button
                   type="button"
                   onClick={resetToAssigned}
-                  className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                  title={t('dashboard.return_to_my_stream')}
+                  className="px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <Home className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                   <span>{t('dashboard.return_to_my_stream')}</span>
                 </button>
               )}
@@ -350,7 +313,9 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
 
         {/* Right: Principal Relevant Layers Only (Área Inundación & Puntos Seguros) */}
         <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 flex-wrap">
-          <span className="text-slate-400 dark:text-slate-500 font-medium">Capas del Mapa:</span>
+          <span className="text-slate-400 dark:text-slate-500 font-medium">
+            {language === 'en' ? 'Map Layers:' : 'Capas del Mapa:'}
+          </span>
 
           {/* Layer: Área Inundación */}
           <button
@@ -371,7 +336,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             >
               {activeLayers.inundacion ? '✓' : ''}
             </span>
-            <span>Área Inundación</span>
+            <span>{language === 'en' ? 'Flood Area' : 'Área Inundación'}</span>
           </button>
 
           {/* Layer: Puntos Seguros */}
@@ -393,12 +358,12 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             >
               {activeLayers.evacuacion ? '✓' : ''}
             </span>
-            <span>Puntos Seguros</span>
+            <span>{language === 'en' ? 'Safe Points' : 'Puntos Seguros'}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. SIATA REAL-TIME TELEMETRY BAR & LIVE RAIN TRIGGER (Requerimiento Técnico 1 & 2) */}
+      {/* 2. SIATA REAL-TIME TELEMETRY BAR (Texto 'TELEMETRÍA EN VIVO' y botón 'Simular Lluvia' eliminados por requerimiento) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 text-white flex items-center justify-center shrink-0">
@@ -407,10 +372,10 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                TELEMETRÍA EN VIVO · {liveTelemetry.stationCode}
+                {liveTelemetry.stationCode}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                ● Sensor Online
+                {language === 'en' ? '● Sensor Online' : '● Sensor en Línea'}
               </span>
             </div>
             <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
@@ -422,13 +387,17 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
         {/* Live Metrics Grid */}
         <div className="flex items-center gap-3 sm:gap-6 text-xs flex-wrap">
           <div>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Nivel Actual</span>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">
+              {language === 'en' ? 'Current Level' : 'Nivel Actual'}
+            </span>
             <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
               {liveTelemetry.currentLevelM.toFixed(2)} m
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Capacidad</span>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">
+              {language === 'en' ? 'Capacity' : 'Capacidad'}
+            </span>
             <span className={`font-mono font-black text-sm ${
               liveTelemetry.capacityPercentage >= 75
                 ? 'text-rose-600 dark:text-rose-400'
@@ -440,32 +409,21 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Lluvia Alta</span>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">
+              {language === 'en' ? 'Upper Rain' : 'Lluvia Alta'}
+            </span>
             <span className="font-mono font-black text-sm text-blue-600 dark:text-blue-400">
               {liveTelemetry.rainIntensityMmH} mm/h
             </span>
           </div>
           <div>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Margen Libre</span>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">
+              {language === 'en' ? 'Safety Margin' : 'Margen Libre'}
+            </span>
             <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
               {liveTelemetry.safetyMarginCm} cm
             </span>
           </div>
-
-          {/* Dynamic Rain Test Event Trigger */}
-          <button
-            type="button"
-            onClick={handleToggleRain}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
-              isRaining
-                ? 'bg-blue-600 text-white hover:bg-blue-700 animate-pulse'
-                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-            }`}
-            title="Simula en tiempo real la respuesta inmediata del cauce y mapa al llover"
-          >
-            <CloudRain className={`w-3.5 h-3.5 ${isRaining ? 'text-white' : 'text-blue-500'}`} />
-            <span>{isRaining ? 'Lluvia SIATA Activa' : 'Simular Lluvia'}</span>
-          </button>
         </div>
       </div>
 
@@ -515,8 +473,8 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
                 <span className="text-[11px] font-mono uppercase tracking-widest text-cyan-300 font-semibold">
                   {currentMap.id === 'red-comuna-70'
-                    ? 'RED HIDROGRÁFICA COMUNA 70'
-                    : `ZONA Y CAUCE: QUEBRADA ${currentMap.name.toUpperCase()}`}
+                    ? (language === 'en' ? 'COMUNA 70 HYDROGRAPHIC NETWORK' : 'RED HIDROGRÁFICA COMUNA 70')
+                    : (language === 'en' ? `ZONE & STREAM: ${currentMap.name.toUpperCase()} STREAM` : `ZONA Y CAUCE: QUEBRADA ${currentMap.name.toUpperCase()}`)}
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-black text-white tracking-tight mt-0.5">
@@ -525,42 +483,15 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             </div>
 
             <div className="shrink-0 flex items-center gap-2 flex-wrap">
-              {/* Quick Report Button (Enforced with RBAC) */}
-              {canSubmitReports ? (
-                <button
-                  type="button"
-                  onClick={onOpenReportModal}
-                  className="px-3 py-1.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                  title="Reportar novedad comunitaria en este cauce"
-                >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Reportar</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold flex items-center gap-1.5 border border-slate-700 opacity-60 cursor-not-allowed"
-                  title={
-                    language === 'en'
-                      ? 'Exploration Mode: Report submission restricted to your official residence'
-                      : 'Modo Exploración: Solo puedes emitir reportes en tu quebrada de residencia oficial'
-                  }
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Reportar (Bloqueado)</span>
-                </button>
-              )}
-
               {/* Quick Points Explorer */}
               <button
                 type="button"
                 onClick={() => setShowMapsQuickList(true)}
                 className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                title="Explorar puntos clave y sitios de referencia del sector"
+                title={language === 'en' ? 'Explore key points and reference sites' : 'Explorar puntos clave y sitios de referencia del sector'}
               >
                 <MapPin className="w-3.5 h-3.5 text-blue-200" />
-                <span>Puntos Clave</span>
+                <span>{language === 'en' ? 'Key Points' : 'Puntos Clave'}</span>
                 <span className="px-1.5 py-0.2 rounded bg-blue-700 text-[10px] font-mono">
                   {currentMap.landmarks.length}
                 </span>
@@ -576,12 +507,12 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                     : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                 }`}
               >
-                {liveTelemetry.statusLabelEs}
+                {language === 'en' ? liveTelemetry.statusLabelEn : liveTelemetry.statusLabelEs}
               </span>
             </div>
           </div>
 
-          {/* Leaflet GIS Map Canvas (Full Fluid Space, No SIATA markers, Exclusively Satellite View) */}
+          {/* Leaflet GIS Map Canvas (Full Fluid Space, Exclusively Satellite View) */}
           <div className="p-3 bg-slate-100 dark:bg-slate-950/60 transition-colors">
             <RealisticGisMap
               quebradaId={activeCuencaId}
@@ -605,15 +536,17 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-extrabold text-white">
-                    Recomendaciones
+                    {t('recom.title')}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium">
-                    Sector Quebrada {currentMap.name} · Directrices Preventivas
+                    {language === 'en'
+                      ? `${currentMap.name} Stream Sector · Preventive Directives`
+                      : `Sector Quebrada ${currentMap.name} · Directrices Preventivas`}
                   </p>
                 </div>
               </div>
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
-                Hiperlocal
+                {language === 'en' ? 'Hyperlocal' : 'Hiperlocal'}
               </span>
             </div>
 
@@ -640,10 +573,10 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wide">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Zona Segura de Evacuación</span>
+                  <span>{language === 'en' ? 'Safe Evacuation Zone' : 'Zona Segura de Evacuación'}</span>
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 font-bold border border-emerald-700">
-                  GPS Verificado
+                  {language === 'en' ? 'GPS Verified' : 'GPS Verificado'}
                 </span>
               </div>
 
@@ -653,7 +586,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 <span>{currentMap.evacuationPoint.address}</span>
               </div>
               <div className="text-[10px] text-emerald-300/80 mt-1 font-mono">
-                Capacidad: {currentMap.evacuationPoint.capacity} personas · {currentMap.evacuationPoint.contact}
+                {language === 'en' ? 'Capacity:' : 'Capacidad:'} {currentMap.evacuationPoint.capacity} {language === 'en' ? 'people' : 'personas'} · {currentMap.evacuationPoint.contact}
               </div>
 
               <div className="mt-3.5 flex items-center gap-2">
@@ -679,10 +612,10 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                     }
                   }}
                   className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all border border-slate-700 cursor-pointer"
-                  title="Centrar mapa interactivo en esta zona segura"
+                  title={language === 'en' ? 'Center interactive map on this safe zone' : 'Centrar mapa interactivo en esta zona segura'}
                 >
                   <Compass className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Ubicar en Mapa</span>
+                  <span>{language === 'en' ? 'Locate on Map' : 'Ubicar en Mapa'}</span>
                 </button>
 
                 <a
@@ -692,7 +625,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                   className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Ver en Maps</span>
+                  <span>{language === 'en' ? 'View in Maps' : 'Ver en Maps'}</span>
                 </a>
 
                 <a
@@ -700,10 +633,10 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-1.5 px-2.5 rounded-xl bg-emerald-900 hover:bg-emerald-800 text-emerald-100 border border-emerald-700 text-xs font-bold flex items-center gap-1 transition-all"
-                  title="Trazar ruta de evacuación hacia este punto"
+                  title={language === 'en' ? 'Trace evacuation route to this point' : 'Trazar ruta de evacuación hacia este punto'}
                 >
                   <Navigation className="w-3.5 h-3.5" />
-                  <span>Ruta</span>
+                  <span>{language === 'en' ? 'Route' : 'Ruta'}</span>
                 </a>
               </div>
             </div>
@@ -718,17 +651,17 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 font-black text-[11px] uppercase tracking-wider">
-                  Panel de Supervisión · Rol Administrador
+                  {language === 'en' ? 'Supervision Panel · Admin Role' : 'Panel de Supervisión · Rol Administrador'}
                 </span>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Cartografía Oficial & Red General
+                  {language === 'en' ? 'Official Cartography & General Network' : 'Cartografía Oficial & Red General'}
                 </span>
               </div>
               <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                Red Hidrográfica y Sectores de Paso · Comuna 70
+                {language === 'en' ? 'Hydrographic Network & Transit Sectors · Comuna 70' : 'Red Hidrográfica y Sectores de Paso · Comuna 70'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-                Georreferenciación de las microcuencas del Corregimiento de Altavista.
+                {language === 'en' ? 'Georeferencing of the micro-watersheds of Corregimiento de Altavista.' : 'Georreferenciación de las microcuencas del Corregimiento de Altavista.'}
               </p>
             </div>
 
@@ -740,12 +673,12 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>Abrir Comuna 70 en Google Maps</span>
+                <span>{language === 'en' ? 'Open Comuna 70 in Google Maps' : 'Abrir Comuna 70 en Google Maps'}</span>
               </a>
             </div>
           </div>
 
-          {/* Quebradas Grid with direct Google Maps routes (clean without La Esperanza block) */}
+          {/* Quebradas Grid with direct Google Maps routes */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredNetwork.map((item) => {
               const isSelected = selectedBranchId === item.id || selectedCuencaId === item.id.replace('-main', '').replace('-branch', '');
@@ -773,13 +706,17 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                             : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300'
                         }`}
                       >
-                        {item.status === 'seguro' ? 'Normal' : item.status === 'alerta_amarilla' ? 'Vigilancia' : 'Crítico'}
+                        {item.status === 'seguro'
+                          ? (language === 'en' ? 'Normal' : 'Normal')
+                          : item.status === 'alerta_amarilla'
+                          ? (language === 'en' ? 'Watch' : 'Vigilancia')
+                          : (language === 'en' ? 'Critical' : 'Crítico')}
                       </span>
                     </div>
 
                     <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
                       <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider block">
-                        Recorrido y Sectores:
+                        {language === 'en' ? 'Route & Sectors:' : 'Recorrido y Sectores:'}
                       </span>
                       <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-medium bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
                         {item.veredasPassed}
@@ -811,7 +748,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                       className="flex-1 py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     >
                       <Crosshair className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                      <span>Ver en visor</span>
+                      <span>{language === 'en' ? 'View in viewer' : 'Ver en visor'}</span>
                     </button>
 
                     <a
@@ -819,7 +756,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors shadow-2xs"
-                      title={`Abrir ${item.name} en Google Maps`}
+                      title={language === 'en' ? `Open ${item.name} in Google Maps` : `Abrir ${item.name} en Google Maps`}
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       <span>Google Maps</span>
@@ -845,11 +782,13 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 font-bold">
-                      Directorio de Puntos
+                      {language === 'en' ? 'Directory of Points' : 'Directorio de Puntos'}
                     </span>
                   </div>
                   <h3 className="text-lg font-black text-white">
-                    Puntos de Referencia: Quebrada {currentMap.name}
+                    {language === 'en'
+                      ? `Reference Points: ${currentMap.name} Stream`
+                      : `Puntos de Referencia: Quebrada ${currentMap.name}`}
                   </h3>
                 </div>
               </div>
@@ -857,7 +796,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
               <button
                 onClick={() => setShowMapsQuickList(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Cerrar ventana"
+                title={language === 'en' ? 'Close window' : 'Cerrar ventana'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -868,15 +807,17 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Sitios de Referencia y Puntos Clave ({currentMap.landmarks.length})</span>
+                  <span>
+                    {language === 'en' ? 'Reference Sites & Key Points' : 'Sitios de Referencia y Puntos Clave'} ({currentMap.landmarks.length})
+                  </span>
                 </h4>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                  Haga clic en &quot;Ubicar&quot; para centrar el mapa GIS
+                  {language === 'en' ? 'Click "Locate" to center GIS map' : 'Haga clic en "Ubicar" para centrar el mapa GIS'}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {currentMap.landmarks.map((lm, idx) => (
+                {currentMap.landmarks.map((lm: QuebradaLandmark, idx: number) => (
                   <div
                     key={`modal-lm-${idx}`}
                     className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between"
@@ -884,7 +825,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          {lm.category || 'Punto de Interés'}
+                          {lm.category || (language === 'en' ? 'Point of Interest' : 'Punto de Interés')}
                         </span>
                         <span className="text-[10px] font-mono text-slate-400">
                           #{idx + 1}
@@ -910,16 +851,13 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                         className="flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Abrir en Maps</span>
+                        <span>{language === 'en' ? 'Open in Maps' : 'Abrir en Maps'}</span>
                       </a>
 
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedLandmark(lm);
-                          setSelectedEvacPoint(null);
                           setShowMapsQuickList(false);
-                          // Centrar dinámicamente el mapa en las coordenadas de ese sector
                           if (lm.lat && lm.lng) {
                             setMapTargetCoordinate({
                               lat: lm.lat,
@@ -940,7 +878,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                         className="py-1.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer border border-slate-300 dark:border-slate-700 flex items-center gap-1"
                       >
                         <Compass className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                        <span>Ubicar</span>
+                        <span>{language === 'en' ? 'Locate' : 'Ubicar'}</span>
                       </button>
                     </div>
                   </div>
@@ -950,12 +888,12 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
 
             {/* Modal Footer */}
             <div className="px-6 py-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span>Directorio georreferenciado de la cuenca activa.</span>
+              <span>{language === 'en' ? 'Georeferenced directory of active watershed.' : 'Directorio georreferenciado de la cuenca activa.'}</span>
               <button
                 onClick={() => setShowMapsQuickList(false)}
                 className="py-2 px-5 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs transition-colors cursor-pointer"
               >
-                Cerrar
+                {language === 'en' ? 'Close' : 'Cerrar'}
               </button>
             </div>
           </div>

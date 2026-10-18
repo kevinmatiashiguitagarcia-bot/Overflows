@@ -13,6 +13,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useThemeLanguage } from '../context/ThemeLanguageContext';
 
 interface UpdateContactModalProps {
   isOpen: boolean;
@@ -26,11 +27,12 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
   onSuccess
 }) => {
   const { currentUser, verifyCurrentUserPassword, updateUserEmail } = useAuth();
+  const { language } = useThemeLanguage();
 
   // Multi-step: 1 = Form & Password Auth, 2 = Verification OTP Code
   const [step, setStep] = useState<1 | 2>(1);
 
-  // Form inputs: ONLY newEmail and currentPassword (Phone is completely eliminated)
+  // Form inputs: ONLY newEmail and currentPassword
   const [newEmail, setNewEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -69,17 +71,29 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
     const trimmedEmail = newEmail.trim().toLowerCase();
 
     if (!trimmedEmail || !trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
-      setErrorMessage('Por favor ingresa un correo electrónico válido.');
+      setErrorMessage(
+        language === 'en'
+          ? 'Please enter a valid email address.'
+          : 'Por favor ingresa un correo electrónico válido.'
+      );
       return;
     }
 
     if (trimmedEmail === currentUser.email.toLowerCase()) {
-      setErrorMessage('El correo ingresado es igual a tu correo actual.');
+      setErrorMessage(
+        language === 'en'
+          ? 'The entered email is the same as your current email.'
+          : 'El correo ingresado es igual a tu correo actual.'
+      );
       return;
     }
 
     if (!currentPassword) {
-      setErrorMessage('Debes ingresar tu contraseña actual para autorizar la solicitud.');
+      setErrorMessage(
+        language === 'en'
+          ? 'You must enter your current password to authorize this request.'
+          : 'Debes ingresar tu contraseña actual para autorizar la solicitud.'
+      );
       return;
     }
 
@@ -89,7 +103,11 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
     const isPasswordValid = verifyCurrentUserPassword(currentPassword);
     if (!isPasswordValid) {
       setIsSubmitting(false);
-      setErrorMessage('Contraseña incorrecta. Por motivos de seguridad, la actualización requiere autenticar tu identidad.');
+      setErrorMessage(
+        language === 'en'
+          ? 'Incorrect password. For security reasons, updates require authenticating your identity.'
+          : 'Contraseña incorrecta. Por motivos de seguridad, la actualización requiere autenticar tu identidad.'
+      );
       return;
     }
 
@@ -109,16 +127,29 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
       setIsSubmitting(false);
 
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error || 'No fue posible enviar el código a tu nuevo correo. Intenta de nuevo.');
+        setErrorMessage(
+          data.error ||
+            (language === 'en'
+              ? 'Could not send verification code to your new email. Please try again.'
+              : 'No fue posible enviar el código a tu nuevo correo. Intenta de nuevo.')
+        );
         return;
       }
 
       setStep(2);
-      setInfoMessage(`Hemos enviado un código de verificación de 6 dígitos a ${trimmedEmail}. Revisa tu bandeja de entrada o spam.`);
+      setInfoMessage(
+        language === 'en'
+          ? `We have sent a 6-digit verification code to ${trimmedEmail}. Please check your inbox or spam folder.`
+          : `Hemos enviado un código de verificación de 6 dígitos a ${trimmedEmail}. Revisa tu bandeja de entrada o spam.`
+      );
     } catch {
       setIsSubmitting(false);
       setStep(2);
-      setInfoMessage(`Hemos enviado un código de verificación de 6 dígitos a ${trimmedEmail}.`);
+      setInfoMessage(
+        language === 'en'
+          ? `We have sent a 6-digit verification code to ${trimmedEmail}.`
+          : `Hemos enviado un código de verificación de 6 dígitos a ${trimmedEmail}.`
+      );
     }
   };
 
@@ -138,12 +169,23 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setInfoMessage(`Se ha reenviado un nuevo código a ${newEmail.trim().toLowerCase()}.`);
+        setInfoMessage(
+          language === 'en'
+            ? `A new code has been resent to ${newEmail.trim().toLowerCase()}.`
+            : `Se ha reenviado un nuevo código a ${newEmail.trim().toLowerCase()}.`
+        );
       } else {
-        setErrorMessage(data.error || 'Error al reenviar el código.');
+        setErrorMessage(
+          data.error ||
+            (language === 'en' ? 'Error resending code.' : 'Error al reenviar el código.')
+        );
       }
     } catch {
-      setErrorMessage('Error de conexión al reenviar el código.');
+      setErrorMessage(
+        language === 'en'
+          ? 'Connection error while resending code.'
+          : 'Error de conexión al reenviar el código.'
+      );
     } finally {
       setIsResending(false);
     }
@@ -156,7 +198,11 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
 
     const cleanCode = inputCode.trim();
     if (cleanCode.length !== 6) {
-      setErrorMessage('Por favor ingresa los 6 dígitos del código de verificación recibido en tu correo.');
+      setErrorMessage(
+        language === 'en'
+          ? 'Please enter all 6 digits of the verification code received in your email.'
+          : 'Por favor ingresa los 6 dígitos del código de verificación recibido en tu correo.'
+      );
       return;
     }
 
@@ -177,7 +223,12 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
 
       if (!res.ok || !data.success) {
         setIsSubmitting(false);
-        setErrorMessage(data.error || 'El código ingresado es incorrecto o ha expirado. Por favor verifica tu correo.');
+        setErrorMessage(
+          data.error ||
+            (language === 'en'
+              ? 'The entered code is incorrect or expired. Please check your email.'
+              : 'El código ingresado es incorrecto o ha expirado. Por favor verifica tu correo.')
+        );
         return;
       }
 
@@ -186,17 +237,27 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
       setIsSubmitting(false);
 
       if (!updateResult.success) {
-        setErrorMessage(updateResult.message || 'Error al actualizar el correo.');
+        setErrorMessage(
+          updateResult.message ||
+            (language === 'en' ? 'Error updating email address.' : 'Error al actualizar el correo.')
+        );
         return;
       }
 
-      onSuccess('¡Correo electrónico actualizado y verificado de manera exitosa!');
+      onSuccess(
+        language === 'en'
+          ? 'Email address successfully updated and verified!'
+          : '¡Correo electrónico actualizado y verificado de manera exitosa!'
+      );
       onClose();
     } catch {
-      // Fallback
       const updateResult = updateUserEmail(currentUser.id, newEmail.trim().toLowerCase());
       setIsSubmitting(false);
-      onSuccess('¡Correo electrónico actualizado y verificado de manera exitosa!');
+      onSuccess(
+        language === 'en'
+          ? 'Email address successfully updated and verified!'
+          : '¡Correo electrónico actualizado y verificado de manera exitosa!'
+      );
       onClose();
     }
   };
@@ -216,16 +277,20 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black text-white">
-                Actualización Segura de Correo
+                {language === 'en' ? 'Secure Email Address Update' : 'Actualización Segura de Correo'}
               </h3>
               <p className="text-xs text-slate-400">
-                Paso {step} de 2: {step === 1 ? 'Datos y Autenticación' : 'Validación del Código Enviado'}
+                {language === 'en' ? `Step ${step} of 2: ` : `Paso ${step} de 2: `}
+                {step === 1
+                  ? (language === 'en' ? 'Details & Authentication' : 'Datos y Autenticación')
+                  : (language === 'en' ? 'Validation of Sent Code' : 'Validación del Código Enviado')}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            title={language === 'en' ? 'Close modal' : 'Cerrar ventana'}
           >
             <X className="w-5 h-5" />
           </button>
@@ -242,7 +307,7 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
               1
             </span>
             <span className={`font-bold ${step === 1 ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>
-              Nuevo Correo y Clave
+              {language === 'en' ? 'New Email & Password' : 'Nuevo Correo y Clave'}
             </span>
           </div>
           <div className="h-0.5 flex-1 mx-3 bg-slate-200 dark:bg-slate-700"></div>
@@ -255,7 +320,7 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
               2
             </span>
             <span className={`font-bold ${step === 2 ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
-              Código de Verificación
+              {language === 'en' ? 'Verification Code' : 'Código de Verificación'}
             </span>
           </div>
         </div>
@@ -281,15 +346,17 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
               <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-3.5 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
                 <Lock className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
                 <p>
-                  Por seguridad, el cambio de correo electrónico requiere validar tu contraseña actual y verificar la titularidad mediante un código seguro enviado a tu nueva dirección.
+                  {language === 'en'
+                    ? 'For security, updating your email requires validating your current password and verifying ownership via a secure code sent to your new address.'
+                    : 'Por seguridad, el cambio de correo electrónico requiere validar tu contraseña actual y verificar la titularidad mediante un código seguro enviado a tu nueva dirección.'}
                 </p>
               </div>
 
-              {/* Clean Email Input (No suggestions or fake phone numbers) */}
+              {/* Clean Email Input */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Nuevo Correo Electrónico</span>
+                  <span>{language === 'en' ? 'New Email Address' : 'Nuevo Correo Electrónico'}</span>
                 </label>
                 <input
                   type="email"
@@ -300,7 +367,9 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:outline-hidden focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400"
                 />
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                  Canal seguro para notificaciones de alerta temprana y reportes hidrológicos.
+                  {language === 'en'
+                    ? 'Secure channel for early warning notifications and hydrological reports.'
+                    : 'Canal seguro para notificaciones de alerta temprana y reportes hidrológicos.'}
                 </span>
               </div>
 
@@ -309,10 +378,10 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                 <label className="text-xs font-black text-slate-900 dark:text-white flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-red-700 dark:text-red-400" />
-                    <span>Contraseña Actual (Obligatorio)</span>
+                    <span>{language === 'en' ? 'Current Password (Required)' : 'Contraseña Actual (Obligatorio)'}</span>
                   </span>
                   <span className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">
-                    Verificación de Identidad
+                    {language === 'en' ? 'Identity Verification' : 'Verificación de Identidad'}
                   </span>
                 </label>
                 <div className="relative">
@@ -341,40 +410,41 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                   onClick={onClose}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
-                  Cancelar
+                  {language === 'en' ? 'Cancel' : 'Cancelar'}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
                   className="px-5 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 text-xs font-bold flex items-center gap-2 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
                 >
-                  <span>{isSubmitting ? 'Enviando código...' : 'Continuar y Enviar Código'}</span>
+                  <span>{isSubmitting ? (language === 'en' ? 'Sending code...' : 'Enviando código...') : (language === 'en' ? 'Continue and Send Code' : 'Continuar y Enviar Código')}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </form>
           ) : (
             <form onSubmit={handleStep2Submit} className="space-y-4">
-              {/* Notice that code was sent to the inbox - CODE IS NEVER DISPLAYED ON SCREEN */}
               <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 text-indigo-950 dark:text-indigo-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-black text-xs text-indigo-900 dark:text-indigo-300">
                     <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Código Enviado a tu Correo</span>
+                    <span>{language === 'en' ? 'Code Sent to Your Email' : 'Código Enviado a tu Correo'}</span>
                   </div>
                   <span className="text-[10px] font-mono bg-indigo-200/70 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 px-2 py-0.5 rounded-md font-bold">
-                    Válido por 10 min
+                    {language === 'en' ? 'Valid for 10 min' : 'Válido por 10 min'}
                   </span>
                 </div>
                 <p className="text-xs text-indigo-800 dark:text-indigo-300 leading-relaxed">
-                  Ingresa el código de 6 dígitos que hemos enviado a <strong>{newEmail}</strong> emitido oficialmente desde <strong>overflowsoficial01@gmail.com</strong>.
+                  {language === 'en'
+                    ? <>Enter the 6-digit code sent to <strong>{newEmail}</strong> officially issued from <strong>overflowsoficial01@gmail.com</strong>.</>
+                    : <>Ingresa el código de 6 dígitos que hemos enviado a <strong>{newEmail}</strong> emitido oficialmente desde <strong>overflowsoficial01@gmail.com</strong>.</>}
                 </p>
               </div>
 
               {/* Code Input Field */}
               <div className="space-y-1.5">
                 <label className="text-xs font-black text-slate-900 dark:text-white block">
-                  Ingresa el Código de 6 Dígitos
+                  {language === 'en' ? 'Enter the 6-Digit Code' : 'Ingresa el Código de 6 Dígitos'}
                 </label>
                 <input
                   type="text"
@@ -396,9 +466,15 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                   className="text-indigo-700 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>{isResending ? 'Reenviando...' : 'Reenviar código al correo'}</span>
+                  <span>
+                    {isResending
+                      ? (language === 'en' ? 'Resending...' : 'Reenviando...')
+                      : (language === 'en' ? 'Resend code to email' : 'Reenviar código al correo')}
+                  </span>
                 </button>
-                <span className="text-[11px] text-slate-400">Revisa tu bandeja o carpeta de spam</span>
+                <span className="text-[11px] text-slate-400">
+                  {language === 'en' ? 'Check your inbox or spam folder' : 'Revisa tu bandeja o carpeta de spam'}
+                </span>
               </div>
 
               {/* Actions */}
@@ -412,7 +488,7 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                   }}
                   className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                 >
-                  ← Cambiar correo
+                  {language === 'en' ? '← Change email' : '← Cambiar correo'}
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -421,7 +497,7 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                     onClick={onClose}
                     className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   >
-                    Cancelar
+                    {language === 'en' ? 'Cancel' : 'Cancelar'}
                   </button>
                   <button
                     type="submit"
@@ -429,7 +505,11 @@ export const UpdateContactModal: React.FC<UpdateContactModalProps> = ({
                     className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>{isSubmitting ? 'Verificando...' : 'Confirmar y Actualizar'}</span>
+                    <span>
+                      {isSubmitting
+                        ? (language === 'en' ? 'Verifying...' : 'Verificando...')
+                        : (language === 'en' ? 'Confirm and Update' : 'Confirmar y Actualizar')}
+                    </span>
                   </button>
                 </div>
               </div>

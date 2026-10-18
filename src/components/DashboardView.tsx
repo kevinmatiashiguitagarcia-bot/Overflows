@@ -36,14 +36,14 @@ import {
 interface DashboardProps {
   onNavigateToMap?: (cuencaId?: string) => void;
   onOpenCuencaModal?: (cuenca: CuencaData) => void;
-  onOpenReportModal?: () => void;
+  onNavigateToReports?: () => void;
   onNavigateToProfile?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardProps> = ({
   onNavigateToMap,
   onOpenCuencaModal,
-  onOpenReportModal,
+  onNavigateToReports,
   onNavigateToProfile
 }) => {
   const { currentUser } = useAuth();
@@ -136,10 +136,10 @@ export const DashboardView: React.FC<DashboardProps> = ({
   const isWatch = liveReading.status === 'alerta_amarilla';
 
   const statusLabel = isAlert
-    ? (language === 'en' ? 'SURGE ALERT · OVERFLOW RISK' : 'ALERTA DE CRECIENTE · DESBORDAMIENTO')
+    ? t('dashboard.status_surge_alert')
     : isWatch
-    ? (language === 'en' ? 'PREVENTIVE ALERT · CAUTION' : 'ALERTA PREVENTIVA · PRECAUCIÓN')
-    : (language === 'en' ? 'SAFE CONDITIONS · NORMAL FLOW' : 'CONDICIONES NORMALES · CAUDAL SEGURO');
+    ? t('dashboard.status_preventive_alert')
+    : t('dashboard.status_normal_safe');
 
   const statusColorClasses = isAlert
     ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60'
@@ -198,7 +198,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
             {isAdmin ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800">
                 <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Administrador OVERFLOWS · Control Total</span>
+                <span>{t('dashboard.admin_full_control')}</span>
               </span>
             ) : isViewingAssigned ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
@@ -224,22 +224,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
             )}
           </div>
 
-          {/* Action Buttons: Live Rain Trigger & Unified Selector Dropdown */}
+          {/* Unified Selector Dropdown */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleToggleRain}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                isRaining
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 animate-pulse'
-                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-              }`}
-              title="Simula en tiempo real la respuesta inmediata del cauce al llover"
-            >
-              <CloudRain className={`w-3.5 h-3.5 ${isRaining ? 'text-white' : 'text-blue-500'}`} />
-              <span>{isRaining ? 'Lluvia SIATA Activa' : 'Simular Lluvia'}</span>
-            </button>
-
             <div className="relative" ref={selectorRef}>
               <button
                 type="button"
@@ -487,9 +473,9 @@ export const DashboardView: React.FC<DashboardProps> = ({
               }`}>
                 <span>
                   {liveCapacity >= 75
-                    ? '⚠️ Margen de seguridad crítico'
+                    ? t('dashboard.critical_safety_margin')
                     : liveCapacity >= 50
-                    ? '⚠️ Cota en vigilancia preventiva'
+                    ? t('dashboard.watch_safety_margin')
                     : t('dashboard.safe_hydraulic_level')}
                 </span>
               </div>
@@ -722,7 +708,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* 4. SECCIÓN DE REPORTE Y PERMISOS COMUNITARIOS DE RESIDENCIA */}
+        {/* 4. GUÍA DE REPORTES CIUDADANOS CENTRALIZADA */}
         <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
           <div className="p-4 sm:p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
             <div className="space-y-1 max-w-xl">
@@ -734,14 +720,14 @@ export const DashboardView: React.FC<DashboardProps> = ({
                 )}
                 <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
                   {isViewingAssigned
-                    ? t('dashboard.report_critical_segment_button')
+                    ? t('reports.title')
                     : t('dashboard.exploration_mode_badge')}
                 </h4>
               </div>
 
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 {isViewingAssigned
-                  ? t('dashboard.report_enabled_hint')
+                  ? t('dashboard.dedicated_reports_guide')
                   : language === 'en'
                   ? `Community Restriction Notice: You can only submit community reports for your official residential area (${assignedCuenca.name} Stream). To report on this basin, update your residential sector in My Profile.`
                   : `Aviso de Restricción Comunitaria: Solo puedes emitir reportes comunitarios para tu zona de residencia oficial (Quebrada ${assignedCuenca.name}). Para reportar sobre esta cuenca, actualiza tu sector de residencia desde Mi Perfil.`}
@@ -750,37 +736,27 @@ export const DashboardView: React.FC<DashboardProps> = ({
 
             <div className="flex items-center gap-2.5 shrink-0">
               {isViewingAssigned ? (
-                <button
-                  type="button"
-                  onClick={onOpenReportModal}
-                  className="px-4 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>{t('dashboard.report_critical_segment_button')}</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
+                onNavigateToReports && (
                   <button
                     type="button"
-                    disabled
-                    className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 font-bold text-xs flex items-center gap-2 cursor-not-allowed opacity-75"
-                    title={language === 'en' ? 'Report submission locked outside your official residential area' : 'Emisión de reporte bloqueada fuera de tu zona de residencia'}
+                    onClick={onNavigateToReports}
+                    className="px-4 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
                   >
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>{t('dashboard.report_critical_segment_button')}</span>
+                    <span>{t('dashboard.go_to_reports')}</span>
+                    <ExternalLink className="w-4 h-4" />
                   </button>
-
-                  {onNavigateToProfile && (
-                    <button
-                      type="button"
-                      onClick={onNavigateToProfile}
-                      className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                    >
-                      <User className="w-3.5 h-3.5" />
-                      <span>{t('nav.profile')}</span>
-                    </button>
-                  )}
-                </div>
+                )
+              ) : (
+                onNavigateToProfile && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToProfile}
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>{t('nav.profile')}</span>
+                  </button>
+                )
               )}
             </div>
           </div>

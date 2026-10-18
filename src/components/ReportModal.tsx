@@ -21,7 +21,9 @@ import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import { createCitizenReport, getQuebradaBySector } from '../data/reportsService';
 import {
   validateReportEnvironmentImage,
-  validateReportTextNLP
+  validateReportTextNLP,
+  EXACT_AI_IMAGE_REJECTION_MSG,
+  EXACT_AI_IMAGE_REJECTION_MSG_EN
 } from '../utils/reportAiValidator';
 
 interface ReportModalProps {
@@ -36,7 +38,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   onReportSubmitted
 }) => {
   const { currentUser } = useAuth();
-  const { t } = useThemeLanguage();
+  const { t, language } = useThemeLanguage();
   const isAdmin = currentUser?.role === 'administrador';
   const userSector = currentUser?.barrioSector || SECTORS_LIST[0];
 
@@ -74,11 +76,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         try {
           const aiResult = await validateReportEnvironmentImage(file);
           if (!aiResult.isValid) {
-            if (aiResult.isFaceDetected) {
-              setValidationError(t('reports.ai_face_detected_err'));
-            } else {
-              setValidationError(t('reports.ai_not_hydrological_err'));
-            }
+            setValidationError(language === 'en' ? EXACT_AI_IMAGE_REJECTION_MSG_EN : EXACT_AI_IMAGE_REJECTION_MSG);
             continue; // Reject this file
           }
         } catch {

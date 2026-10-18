@@ -141,7 +141,7 @@ function AppContent() {
                 setCurrentView('mapa');
               }}
               onOpenCuencaModal={(cuenca) => setSelectedCuencaForModal(cuenca)}
-              onOpenReportModal={() => setReportModalOpen(true)}
+              onNavigateToReports={() => setCurrentView('reportes')}
               onNavigateToProfile={() => setCurrentView('perfil')}
             />
           )}
@@ -149,7 +149,7 @@ function AppContent() {
           {currentView === 'mapa' && (
             <LiveRiskMapView
               initialCuencaId={selectedCuencaId}
-              onOpenReportModal={() => setReportModalOpen(true)}
+              onNavigateToProfile={() => setCurrentView('perfil')}
             />
           )}
 
