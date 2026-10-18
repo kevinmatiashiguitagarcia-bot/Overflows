@@ -58,15 +58,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return (
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 text-center max-w-lg mx-auto my-12 transition-colors">
         <User className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No has iniciado sesión</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+          {t('profile.not_logged')}
+        </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-          Inicia sesión para ver tu perfil de habitante y gestionar tu información personal.
+          {t('profile.not_logged_desc')}
         </p>
         <button
           onClick={onBackToDashboard}
           className="px-5 py-2.5 rounded-xl bg-[#8B0000] text-white text-xs font-bold cursor-pointer"
         >
-          Volver al Inicio
+          {t('profile.back_home')}
         </button>
       </div>
     );
@@ -103,13 +105,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setNameError(null);
     const trimmed = nameInput.trim();
     if (!trimmed || trimmed.length < 3) {
-      setNameError('El nombre debe tener al menos 3 caracteres.');
+      setNameError(t('profile.name_min_chars'));
       return;
     }
     const res = updateUserName(currentUser.id, trimmed);
     if (res.success) {
       setIsEditingName(false);
-      handleUpdateSuccess('Nombre actualizado correctamente.');
+      handleUpdateSuccess(t('profile.name_updated_success'));
     } else {
       setNameError(res.message);
     }
@@ -120,14 +122,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Reset input so the same file can be re-selected if desired
     e.target.value = '';
-
     setBiometricAlert(null);
     setIsScanningBiometrics(true);
 
     try {
-      // 1. Read image as Data URL
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
@@ -135,46 +134,42 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         reader.readAsDataURL(file);
       });
 
-      // 2. Perform Biometric Face Validation (rejects landscapes, vehicles, objects, avatars without real face)
       const validation = await validateHumanFaceBiometrics(dataUrl);
 
       if (!validation.isHumanFace) {
-        // EXACT required alert message on rejection
         setBiometricAlert({
           type: 'error',
-          message: 'Acceso no concedido: La foto de perfil debe ser una fotografía clara de una persona.'
+          message: t('profile.biometric_err_title')
         });
         setIsScanningBiometrics(false);
         return;
       }
 
-      // 3. Biometric check passed: save avatar silently to user account without descriptive text/alert
       const updateRes = updateUserAvatar(currentUser.id, dataUrl);
       if (updateRes.success) {
         setBiometricAlert(null);
       } else {
         setBiometricAlert({
           type: 'error',
-          message: updateRes.message || 'Error al guardar la foto de perfil.'
+          message: updateRes.message || t('profile.biometric_err_title')
         });
       }
     } catch (err) {
       console.error('Error al procesar foto de perfil:', err);
       setBiometricAlert({
         type: 'error',
-        message: 'Acceso no concedido: La foto de perfil debe ser una fotografía clara de una persona.'
+        message: t('profile.biometric_err_title')
       });
     } finally {
       setIsScanningBiometrics(false);
     }
   };
 
-  // Delete photo and revert to default avatar with initials
   const handleDeletePhoto = () => {
     const res = updateUserAvatar(currentUser.id, '');
     if (res.success) {
       setBiometricAlert(null);
-      handleUpdateSuccess('Foto de perfil eliminada. Se muestra tu avatar con iniciales.');
+      handleUpdateSuccess(t('profile.photo_deleted_success'));
     }
   };
 
@@ -195,19 +190,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       )}
 
-      {/* Header with back button - Cleaned without static "Rol: Habitante Residente" tag */}
+      {/* Header with back button */}
       <div className="flex items-center justify-between">
         <button
           onClick={onBackToDashboard}
           className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Volver al Monitoreo</span>
+          <span>{t('profile.back')}</span>
         </button>
 
-        {isAdmin && (
+        {isAdmin ? (
           <span className="text-xs px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 font-bold border border-indigo-200 dark:border-indigo-800">
-            Administrador
+            {t('profile.admin_badge')}
+          </span>
+        ) : (
+          <span className="text-xs px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
+            {t('profile.resident_badge')}
           </span>
         )}
       </div>
@@ -235,7 +234,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {isScanningBiometrics && (
                 <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center text-white">
                   <ScanFace className="w-8 h-8 text-cyan-400 animate-pulse" />
-                  <span className="text-[9px] font-mono mt-1 text-cyan-200">Escaneando...</span>
+                  <span className="text-[9px] font-mono mt-1 text-cyan-200">{t('profile.scanning')}</span>
                 </div>
               )}
             </div>
@@ -255,7 +254,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               onClick={() => fileInputRef.current?.click()}
               disabled={isScanningBiometrics}
               className="absolute -bottom-1 -right-1 p-2.5 rounded-2xl bg-slate-900 hover:bg-[#8B0000] text-white shadow-md transition-all cursor-pointer border border-slate-700 hover:scale-105"
-              title="Cargar foto de perfil (con validación biométrica facial)"
+              title={t('profile.upload_photo_title')}
             >
               {isScanningBiometrics ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -267,7 +266,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {/* User Details & Name Editor */}
           <div className="flex-1 w-full">
-            {/* Inline Name Editing Form */}
             {isEditingName ? (
               <form onSubmit={handleSaveName} className="space-y-2 mb-2">
                 <div className="flex items-center gap-2">
@@ -279,14 +277,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       setNameError(null);
                     }}
                     required
-                    placeholder="Tu nombre completo"
+                    placeholder={t('profile.full_name_placeholder')}
                     className="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-base font-bold focus:outline-none focus:ring-2 focus:ring-red-600"
                     autoFocus
                   />
                   <button
                     type="submit"
                     className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors cursor-pointer"
-                    title="Guardar nombre"
+                    title={t('profile.save_name')}
                   >
                     <Check className="w-4 h-4" />
                   </button>
@@ -298,7 +296,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       setNameError(null);
                     }}
                     className="p-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                    title="Cancelar"
+                    title={t('profile.cancel')}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -319,7 +317,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     setIsEditingName(true);
                   }}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  title="Modificar nombre completo"
+                  title={t('profile.change_name')}
                 >
                   <Edit3 className="w-4 h-4" />
                 </button>
@@ -328,13 +326,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
             <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center sm:justify-start gap-1.5 font-medium">
               <MapPin className="w-3.5 h-3.5 text-red-600" />
-              <span>{currentUser.barrioSector} · Corregimiento de Altavista</span>
+              <span>{currentUser.barrioSector} · {t('profile.township_label')}</span>
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              Registrado desde el {formattedDate}
+              {t('profile.registered_since')} {formattedDate}
             </p>
 
-            {/* Action button: Only "Eliminar foto" if avatar exists (camera icon on avatar triggers photo upload) */}
             {currentUser.avatarUrl && (
               <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                 <button
@@ -342,24 +339,24 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   onClick={handleDeletePhoto}
                   disabled={isScanningBiometrics}
                   className="text-xs font-bold text-rose-700 dark:text-rose-400 hover:text-rose-800 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                  title={t('profile.delete_photo', 'Eliminar foto de perfil actual')}
+                  title={t('profile.delete_photo_title')}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>{t('profile.delete_photo', 'Eliminar foto')}</span>
+                  <span>{t('profile.delete_photo')}</span>
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Biometric Validation Error Banner (Only displayed on error, silent on success) */}
+        {/* Biometric Validation Error Banner */}
         {biometricAlert && biometricAlert.type === 'error' && (
           <div className="mt-4 p-4 rounded-2xl border text-xs font-bold flex items-start gap-3 animate-in fade-in bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-900">
             <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="leading-relaxed">{biometricAlert.message}</p>
               <p className="text-[11px] font-normal text-rose-700 dark:text-rose-300 mt-1">
-                El sistema biométrico requiere un retrato humano frontal donde el rostro sea claramente visible y no un objeto, paisaje o ilustración.
+                {t('profile.biometric_err_desc')}
               </p>
             </div>
             <button
@@ -379,15 +376,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   <Mail className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                  <span>Correo Electrónico</span>
+                  <span>{t('profile.email_label')}</span>
                 </div>
                 <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-mono font-bold">
-                  Verificado
+                  {t('profile.verified_badge')}
                 </span>
               </div>
               <p className="text-sm font-bold text-slate-900 dark:text-white break-all">{currentUser.email}</p>
               <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-1 inline-block">
-                ✓ Canal habilitado para notificaciones de alerta temprana
+                {t('profile.alert_channel_enabled')}
               </span>
             </div>
 
@@ -398,7 +395,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Actualizar correo (Flujo Seguro con Verificación)</span>
+                <span>{t('profile.update_email_button')}</span>
               </button>
             </div>
           </div>
@@ -409,31 +406,30 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   <MapPin className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                  <span>Sector / Vereda de Residencia</span>
+                  <span>{t('profile.sector_label')}</span>
                 </div>
                 <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-bold">
-                  Comuna 70
+                  {t('profile.zone_badge')}
                 </span>
               </div>
               <p className="text-sm font-bold text-slate-900 dark:text-white">{currentUser.barrioSector}</p>
               <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 inline-block">
-                Cuenca y margen de protección hidrológica asignada
+                {t('profile.basin_assigned_hint')}
               </span>
             </div>
 
             <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Corregimiento Altavista · Medellín
+                {t('profile.township_label')}
               </span>
               
-              {/* Visible "Cambiar sector" Button */}
               <button
                 type="button"
                 onClick={() => setChangeSectorOpen(true)}
                 className="text-xs font-bold px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
                 <Compass className="w-3.5 h-3.5" />
-                <span>Cambiar sector</span>
+                <span>{t('profile.change_sector_button')}</span>
               </button>
             </div>
           </div>
@@ -443,33 +439,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                <span>Protección de Datos Personales (Habeas Data)</span>
+                <span>{t('profile.habeas_data_title')}</span>
               </div>
               <span className="text-xs text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                Ley 1581 de 2012
+                {t('profile.law_badge')}
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-              Tus datos están protegidos y son utilizados exclusivamente para la emisión de avisos de seguridad y salvaguarda comunitaria ante crecientes súbitas.
+              {t('profile.habeas_data_desc')}
             </p>
             <button
               type="button"
               onClick={onOpenPrivacyPolicy}
               className="text-xs text-[#8B0000] dark:text-red-400 font-bold hover:underline mt-2 inline-block cursor-pointer"
             >
-              Consultar Política de Tratamiento de Datos Personales →
+              {t('profile.consult_privacy_policy')}
             </button>
           </div>
         </div>
 
-        {/* Basin Protection & Community Info (Official email text removed as requested) */}
+        {/* Basin Protection & Community Info */}
         <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 mb-6 flex items-start gap-3">
           <Waves className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-950 dark:text-amber-200 leading-relaxed">
-            <strong className="font-bold">Permisos de Visualización:</strong>{' '}
-            {isAdmin
-              ? 'Cuentas con acceso administrativo integral para supervisar todas las quebradas y cotas de la Comuna 70.'
-              : 'Tu cuenta tiene acceso exclusivo a los datos y reportes de tu quebrada asignada, preservando la privacidad y focalización territorial.'}
+            <strong className="font-bold">{t('profile.view_permissions_title')}</strong>{' '}
+            {isAdmin ? t('profile.admin_permission_desc') : t('profile.resident_permission_desc')}
           </div>
         </div>
 
@@ -477,10 +471,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Eliminación de Cuenta Comunitaria
+              {t('profile.danger_zone_title')}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Borrado permanente de tus credenciales y reportes conforme a la Ley de Habeas Data.
+              {t('profile.danger_zone_desc')}
             </p>
           </div>
           <button
@@ -488,7 +482,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             onClick={onOpenDeleteVerification}
             className="px-4 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-900 text-xs font-bold transition-colors cursor-pointer"
           >
-            Eliminar Cuenta
+            {t('profile.delete_account_button')}
           </button>
         </div>
       </div>

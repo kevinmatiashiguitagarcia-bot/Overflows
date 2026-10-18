@@ -2,6 +2,11 @@ import React, { useState, useEffect, useId, useMemo, useRef } from 'react';
 import { CUENCAS_LIST } from '../data/cuencasData';
 import { QUEBRADAS_MAP_DATA } from '../data/quebradaMapsData';
 import { CuencaData } from '../types';
+import {
+  calculateLiveSiataReading,
+  toggleSiataRainEvent,
+  getSiataWeatherMode
+} from '../data/siataTelemetryService';
 import { useAuth } from '../context/AuthContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import { useCuenca } from '../context/CuencaContext';
@@ -51,7 +56,10 @@ export const DashboardView: React.FC<DashboardProps> = ({
     isExploring,
     isAdmin,
     canSubmitReports,
-    resetToAssigned
+    resetToAssigned,
+    isRaining,
+    toggleRain,
+    availableCuencas
   } = useCuenca();
 
   const gradientId = useId();
@@ -86,18 +94,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
     ? currentUser?.barrioSector || activeCuenca.sector
     : activeCuenca.sector;
 
-  // 2. Continuous Real-Time SIATA Synchronization Engine
-  const [telemetryTick, setTelemetryTick] = useState(0);
+  // 2. Motor de Telemetría Oficial SIATA en Tiempo Real
   const [secondsSinceLastReading, setSecondsSinceLastReading] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTelemetryTick((prev) => prev + 1);
-      setSecondsSinceLastReading(0);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -107,69 +105,41 @@ export const DashboardView: React.FC<DashboardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Compute live fluctuating values around the baseline
-  const {
-    liveLevel,
-    liveCapacity,
-    liveMarginCm,
-    liveFlowRate,
-    liveRainIntensity,
-    trendDirection
-  } = useMemo(() => {
-    const wave = Math.sin(telemetryTick * 0.75) * 0.02 + Math.cos(telemetryTick * 0.35) * 0.01;
-    const baseLvl = activeCuenca.currentLevel;
-    const lvl = Math.max(0.2, Number((baseLvl + wave).toFixed(2)));
-    const cap = Math.min(100, Math.max(10, Math.round((lvl / activeCuenca.maxThreshold) * 100)));
-    const margin = Math.round(Math.max(15, (activeCuenca.maxThreshold - lvl) * 100));
-    const flow = Number((activeCuenca.flowRate + wave * 0.4).toFixed(2));
-    const rain = Number((activeCuenca.rainIntensityMmH + Math.abs(Math.sin(telemetryTick * 0.5)) * 0.1).toFixed(1));
+  // Telemetría oficial calculada en vivo para la cuenca activa
+  const liveReading = useMemo(() => {
+    return calculateLiveSiataReading(activeCuenca.id);
+  }, [activeCuenca.id, isRaining, activeCuenca.currentLevel]);
 
-    return {
-      liveLevel: lvl,
-      liveCapacity: cap,
-      liveMarginCm: margin,
-      liveFlowRate: flow,
-      liveRainIntensity: rain,
-      trendDirection: wave >= 0 ? 'estable_sube' : 'estable_baja'
-    };
-  }, [activeCuenca.currentLevel, activeCuenca.maxThreshold, activeCuenca.flowRate, activeCuenca.rainIntensityMmH, telemetryTick]);
+  const liveLevel = activeCuenca.currentLevel ?? liveReading.currentLevelM;
+  const liveCapacity = activeCuenca.capacityPercentage ?? liveReading.capacityPercentage;
+  const liveMarginCm = activeCuenca.margin ?? liveReading.safetyMarginCm;
+  const liveFlowRate = activeCuenca.flowRate ?? liveReading.flowRateM3s;
+  const liveRainIntensity = activeCuenca.rainIntensityMmH ?? liveReading.rainIntensityMmH;
+  const trendDirection = liveReading.trendText;
 
-  // Historical 6-point chart data synced dynamically with live stream
+  const handleToggleRain = () => {
+    toggleRain();
+    setSecondsSinceLastReading(0);
+  };
+
+  // Historial de la última hora (Estrictamente registros históricos pasados, cero pronósticos)
   const historyData = useMemo(() => {
-    const timeLabels =
-      language === 'en'
-        ? ['-50 min', '-40 min', '-30 min', '-20 min', '-10 min', 'Live']
-        : ['-50 min', '-40 min', '-30 min', '-20 min', '-10 min', 'En Vivo'];
+    return liveReading.historyHour.map((pt) => ({
+      label: pt.minuteLabel === 'Ahora' ? (language === 'en' ? 'Live' : 'En Vivo') : pt.minuteLabel,
+      level: pt.levelM,
+      percentage: pt.capacityPercentage
+    }));
+  }, [liveReading.historyHour, language]);
 
-    const staticOffsets = [-0.05, -0.03, -0.01, +0.01, -0.01];
-
-    const pts = staticOffsets.map((off, idx) => {
-      const l = Math.max(0.2, Number((activeCuenca.currentLevel + off).toFixed(2)));
-      return {
-        label: timeLabels[idx],
-        level: l,
-        percentage: Math.round((l / activeCuenca.maxThreshold) * 100)
-      };
-    });
-
-    pts.push({
-      label: timeLabels[5],
-      level: liveLevel,
-      percentage: liveCapacity
-    });
-
-    return pts;
-  }, [activeCuenca.currentLevel, activeCuenca.maxThreshold, language, liveLevel, liveCapacity]);
-
-  // Determine status visual attributes
-  const isAlert = activeCuenca.status === 'alerta_naranja' || activeCuenca.status === 'alerta_roja';
-  const isWatch = activeCuenca.status === 'alerta_amarilla';
+  // Determine status visual attributes (Verde obligatorio para condiciones óptimas)
+  const isAlert = liveReading.status === 'alerta_naranja' || liveReading.status === 'alerta_roja';
+  const isWatch = liveReading.status === 'alerta_amarilla';
 
   const statusLabel = isAlert
-    ? t('dashboard.orange_alert')
+    ? (language === 'en' ? 'SURGE ALERT · OVERFLOW RISK' : 'ALERTA DE CRECIENTE · DESBORDAMIENTO')
     : isWatch
-    ? t('dashboard.yellow_alert')
-    : t('dashboard.safe_normal_flow');
+    ? (language === 'en' ? 'PREVENTIVE ALERT · CAUTION' : 'ALERTA PREVENTIVA · PRECAUCIÓN')
+    : (language === 'en' ? 'SAFE CONDITIONS · NORMAL FLOW' : 'CONDICIONES NORMALES · CAUDAL SEGURO');
 
   const statusColorClasses = isAlert
     ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60'
@@ -178,6 +148,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
     : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/60';
 
   const dotColorClass = isAlert ? 'bg-rose-500' : isWatch ? 'bg-amber-500' : 'bg-emerald-500';
+  const chartStrokeColor = isAlert ? '#ef4444' : isWatch ? '#f59e0b' : '#10b981';
 
   // SVG Chart Geometry
   const svgWidth = 600;
@@ -253,17 +224,32 @@ export const DashboardView: React.FC<DashboardProps> = ({
             )}
           </div>
 
-          {/* Unified Selector Button / Dropdown: "Ver otras quebradas" */}
-          <div className="relative" ref={selectorRef}>
+          {/* Action Buttons: Live Rain Trigger & Unified Selector Dropdown */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => setSelectorOpen(!selectorOpen)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-extrabold transition-all shadow-2xs cursor-pointer"
+              onClick={handleToggleRain}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                isRaining
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 animate-pulse'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+              }`}
+              title="Simula en tiempo real la respuesta inmediata del cauce al llover"
             >
-              <Waves className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>{t('dashboard.explore_other_streams')}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${selectorOpen ? 'rotate-180' : ''}`} />
+              <CloudRain className={`w-3.5 h-3.5 ${isRaining ? 'text-white' : 'text-blue-500'}`} />
+              <span>{isRaining ? 'Lluvia SIATA Activa' : 'Simular Lluvia'}</span>
             </button>
+
+            <div className="relative" ref={selectorRef}>
+              <button
+                type="button"
+                onClick={() => setSelectorOpen(!selectorOpen)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-extrabold transition-all shadow-2xs cursor-pointer"
+              >
+                <Waves className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>{t('dashboard.explore_other_streams')}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${selectorOpen ? 'rotate-180' : ''}`} />
+              </button>
 
             {selectorOpen && (
               <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
@@ -271,9 +257,15 @@ export const DashboardView: React.FC<DashboardProps> = ({
                   {t('dashboard.explore_other_streams')}
                 </div>
                 <div className="max-h-60 overflow-y-auto space-y-1">
-                  {CUENCAS_LIST.map((cuenca) => {
+                  {availableCuencas.map((cuenca) => {
                     const isUserHome = cuenca.id === userAssignedCuencaId;
                     const isSelected = cuenca.id === activeCuenca.id;
+                    const statusDotColor =
+                      cuenca.capacityPercentage >= 75
+                        ? 'bg-rose-500'
+                        : cuenca.capacityPercentage >= 50
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500';
 
                     return (
                       <button
@@ -291,6 +283,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
                       >
                         <div className="pr-2 truncate">
                           <div className="font-bold flex items-center gap-1.5 truncate">
+                            <span className={`w-2 h-2 rounded-full ${statusDotColor} shrink-0`} />
                             {isUserHome && (
                               <Home className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Tu cuenca de residencia" />
                             )}
@@ -307,7 +300,11 @@ export const DashboardView: React.FC<DashboardProps> = ({
                           className={`px-2 py-0.5 rounded-md font-mono font-bold text-[10px] shrink-0 ${
                             isSelected
                               ? 'bg-white/20 text-white'
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                              : cuenca.capacityPercentage >= 75
+                              ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
+                              : cuenca.capacityPercentage >= 50
+                              ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                              : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
                           }`}
                         >
                           {cuenca.capacityPercentage}%
@@ -317,7 +314,10 @@ export const DashboardView: React.FC<DashboardProps> = ({
                   })}
                 </div>
               </div>
+            )}
+          </div>
         </div>
+      </div>
 
         {/* Exploration Mode Notice Banner for Citizens */}
         {isExploring && (
@@ -437,19 +437,25 @@ export const DashboardView: React.FC<DashboardProps> = ({
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 <span>{t('dashboard.channel_capacity')}</span>
-                <Gauge className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <Gauge className={`w-4 h-4 ${liveCapacity >= 75 ? 'text-rose-500' : liveCapacity >= 50 ? 'text-amber-500' : 'text-emerald-500'}`} />
               </div>
               <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-3xl sm:text-4xl font-black font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
+                <span className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${
+                  liveCapacity >= 75
+                    ? 'text-rose-600 dark:text-rose-400'
+                    : liveCapacity >= 50
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-emerald-600 dark:text-emerald-400'
+                }`}>
                   {liveCapacity}%
                 </span>
               </div>
               <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-2 overflow-hidden p-0.5">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
-                    liveCapacity > 75
+                    liveCapacity >= 75
                       ? 'bg-rose-500'
-                      : liveCapacity > 45
+                      : liveCapacity >= 50
                       ? 'bg-amber-500'
                       : 'bg-emerald-500'
                   }`}
@@ -462,7 +468,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 <span>{t('dashboard.safety_margin')}</span>
-                <TrendingDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <TrendingDown className={`w-4 h-4 ${liveCapacity >= 75 ? 'text-rose-500' : liveCapacity >= 50 ? 'text-amber-500' : 'text-emerald-500'}`} />
               </div>
               <div className="mt-2 flex items-baseline gap-1.5">
                 <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
@@ -472,8 +478,20 @@ export const DashboardView: React.FC<DashboardProps> = ({
                   {t('dashboard.free_cm')}
                 </span>
               </div>
-              <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 font-bold flex items-center gap-1">
-                <span>{t('dashboard.safe_hydraulic_level')}</span>
+              <div className={`text-xs mt-1.5 font-bold flex items-center gap-1 ${
+                liveCapacity >= 75
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : liveCapacity >= 50
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                <span>
+                  {liveCapacity >= 75
+                    ? '⚠️ Margen de seguridad crítico'
+                    : liveCapacity >= 50
+                    ? '⚠️ Cota en vigilancia preventiva'
+                    : t('dashboard.safe_hydraulic_level')}
+                </span>
               </div>
             </div>
 
@@ -543,8 +561,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor={chartStrokeColor} stopOpacity="0.32" />
+                  <stop offset="100%" stopColor={chartStrokeColor} stopOpacity="0.0" />
                 </linearGradient>
               </defs>
 
@@ -572,7 +590,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
               <path
                 d={linePath}
                 fill="none"
-                stroke="#10b981"
+                stroke={chartStrokeColor}
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -593,11 +611,12 @@ export const DashboardView: React.FC<DashboardProps> = ({
                     r={activePointIndex === idx ? 6 : idx === points.length - 1 ? 5 : 4}
                     className={`transition-all duration-150 ${
                       activePointIndex === idx
-                        ? 'fill-white stroke-emerald-600 stroke-3 dark:fill-slate-900'
+                        ? 'fill-white stroke-slate-900 stroke-3 dark:fill-slate-900'
                         : idx === points.length - 1
-                        ? 'fill-emerald-400 stroke-emerald-700 stroke-2 animate-pulse'
-                        : 'fill-emerald-500 stroke-white stroke-2 dark:stroke-slate-900'
+                        ? 'stroke-white stroke-2 animate-pulse'
+                        : 'stroke-white stroke-2 dark:stroke-slate-900'
                     }`}
+                    style={{ fill: chartStrokeColor }}
                   />
 
                   <text

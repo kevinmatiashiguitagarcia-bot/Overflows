@@ -11,6 +11,13 @@ import {
   getPointGoogleMapsDirectionsUrl
 } from '../data/quebradaMapsData';
 import {
+  calculateLiveSiataReading,
+  toggleSiataRainEvent,
+  getSiataWeatherMode
+} from '../data/siataTelemetryService';
+import {
+  Radio,
+  CloudRain,
   Layers,
   MapPin,
   Send,
@@ -92,7 +99,11 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
     isExploring,
     isAdmin,
     canSubmitReports,
-    resetToAssigned
+    resetToAssigned,
+    isRaining,
+    toggleRain,
+    telemetryTick,
+    availableCuencas
   } = useCuenca();
 
   const [streamSelectorOpen, setStreamSelectorOpen] = useState(false);
@@ -118,9 +129,6 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
     }
   }, [initialCuencaId]);
 
-  // All cuencas available in Comuna 70
-  const availableCuencas = CUENCAS_LIST;
-
   // Streamlined active layers: Strictly Flood and Evacuation (SIATA stations removed)
   const [activeLayers, setActiveLayers] = useState<MapActiveLayers>({
     inundacion: true,
@@ -135,6 +143,13 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
 
   // Active cuenca ID is fully synchronized
   const activeCuencaId = selectedCuencaId || assignedCuenca.id || 'altavista';
+
+  // 1. Motor de Telemetría Oficial SIATA en Tiempo Real
+  const liveTelemetry = calculateLiveSiataReading(activeCuencaId, telemetryTick);
+
+  const handleToggleRain = () => {
+    toggleRain();
+  };
 
   // Retrieve dedicated data for selected quebrada
   const currentMap =
@@ -266,6 +281,13 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                       {availableCuencas.map((c) => {
                         const isHome = c.id === assignedCuenca.id;
                         const isSelected = c.id === activeCuencaId;
+                        const statusDotColor =
+                          c.capacityPercentage >= 75
+                            ? 'bg-rose-500'
+                            : c.capacityPercentage >= 50
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500';
+
                         return (
                           <button
                             key={c.id}
@@ -279,6 +301,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                           >
                             <div className="pr-2 truncate">
                               <div className="font-bold flex items-center gap-1.5 truncate">
+                                <span className={`w-2 h-2 rounded-full ${statusDotColor} shrink-0`} />
                                 {isHome && <Home className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                                 <span className="truncate">
                                   {language === 'en' ? `${c.name} Stream` : `Quebrada ${c.name}`}
@@ -292,7 +315,11 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                               className={`px-2 py-0.5 rounded-md font-mono font-bold text-[10px] shrink-0 ${
                                 isSelected
                                   ? 'bg-white/20 text-white'
-                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                  : c.capacityPercentage >= 75
+                                  ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
+                                  : c.capacityPercentage >= 50
+                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                                  : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
                               }`}
                             >
                               {c.capacityPercentage}%
@@ -368,6 +395,78 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             </span>
             <span>Puntos Seguros</span>
           </button>
+        </div>
+      </div>
+
+      {/* 2. SIATA REAL-TIME TELEMETRY BAR & LIVE RAIN TRIGGER (Requerimiento Técnico 1 & 2) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 text-white flex items-center justify-center shrink-0">
+            <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                TELEMETRÍA EN VIVO · {liveTelemetry.stationCode}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                ● Sensor Online
+              </span>
+            </div>
+            <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+              {liveTelemetry.stationName}
+            </h4>
+          </div>
+        </div>
+
+        {/* Live Metrics Grid */}
+        <div className="flex items-center gap-3 sm:gap-6 text-xs flex-wrap">
+          <div>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Nivel Actual</span>
+            <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
+              {liveTelemetry.currentLevelM.toFixed(2)} m
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Capacidad</span>
+            <span className={`font-mono font-black text-sm ${
+              liveTelemetry.capacityPercentage >= 75
+                ? 'text-rose-600 dark:text-rose-400'
+                : liveTelemetry.capacityPercentage >= 50
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-emerald-600 dark:text-emerald-400'
+            }`}>
+              {liveTelemetry.capacityPercentage}%
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Lluvia Alta</span>
+            <span className="font-mono font-black text-sm text-blue-600 dark:text-blue-400">
+              {liveTelemetry.rainIntensityMmH} mm/h
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block uppercase">Margen Libre</span>
+            <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
+              {liveTelemetry.safetyMarginCm} cm
+            </span>
+          </div>
+
+          {/* Dynamic Rain Test Event Trigger */}
+          <button
+            type="button"
+            onClick={handleToggleRain}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+              isRaining
+                ? 'bg-blue-600 text-white hover:bg-blue-700 animate-pulse'
+                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+            }`}
+            title="Simula en tiempo real la respuesta inmediata del cauce y mapa al llover"
+          >
+            <CloudRain className={`w-3.5 h-3.5 ${isRaining ? 'text-white' : 'text-blue-500'}`} />
+            <span>{isRaining ? 'Lluvia SIATA Activa' : 'Simular Lluvia'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Exploration Mode Notice Banner for Citizens */}
@@ -405,7 +504,7 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
         </div>
       )}
 
-      {/* 2. Main Grid: Fluid GIS Map Canvas + Hydrological Telemetry & Protocol Panel */}
+      {/* 3. Main Grid: Fluid GIS Map Canvas + Hydrological Telemetry & Protocol Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Expanded, Fluid Interactive Map Canvas */}
         <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col transition-colors">
@@ -467,15 +566,22 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                 </span>
               </button>
 
+              {/* DYNAMIC RISK BADGE (Verde para Seguro, Amarillo para Alerta Preventiva, Rojo para Creciente) */}
               <span
-                className={`px-3 py-1 rounded-full text-xs font-black tracking-wide border ${currentMap.riskBadge.bg} ${currentMap.riskBadge.color} ${currentMap.riskBadge.border}`}
+                className={`px-3 py-1 rounded-full text-xs font-black tracking-wide border ${
+                  liveTelemetry.status === 'seguro'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : liveTelemetry.status === 'alerta_amarilla'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}
               >
-                {currentMap.riskBadge.label}
+                {liveTelemetry.statusLabelEs}
               </span>
             </div>
           </div>
 
-          {/* Leaflet GIS Map Canvas (Full Fluid Space, No SIATA markers, No Centrar button) */}
+          {/* Leaflet GIS Map Canvas (Full Fluid Space, No SIATA markers, Exclusively Satellite View) */}
           <div className="p-3 bg-slate-100 dark:bg-slate-950/60 transition-colors">
             <RealisticGisMap
               quebradaId={activeCuencaId}
@@ -483,6 +589,8 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
               userSectorName={userSectorInfo.label}
               activeLayers={activeLayers}
               targetCoordinate={mapTargetCoordinate}
+              cuencaStatus={liveTelemetry.status}
+              capacityPercentage={liveTelemetry.capacityPercentage}
             />
           </div>
         </div>

@@ -19,6 +19,12 @@ export interface TextModerationResult {
   feedbackMessage?: string;
 }
 
+export const EXACT_AI_IMAGE_REJECTION_MSG =
+  'Imagen no coincide: El archivo adjunto contiene rostros, objetos o elementos ajenos al entorno hidrológico';
+
+export const EXACT_AI_IMAGE_REJECTION_MSG_EN =
+  'Image mismatch: The attached file contains faces, personal objects, or elements unrelated to the hydrological environment';
+
 /**
  * List of vulgar / offensive terms in Spanish and regional Colombian slang.
  */
@@ -62,7 +68,13 @@ const VULGAR_TERMS = [
   'monda',
   'malparidos',
   'gonorreas',
-  'zorra'
+  'zorra',
+  'pirobo',
+  'piroba',
+  'careverga',
+  'carechimba',
+  'hptas',
+  'malparidas'
 ];
 
 /**
@@ -169,6 +181,7 @@ function normalizeText(text: string): string {
 
 /**
  * Validates text for profanity, spam, and ambiguity.
+ * If ambiguous or lacking clear context, flags for special review at overflowsoficial01@gmail.com.
  */
 export function validateReportTextNLP(text: string): TextModerationResult {
   const trimmed = text.trim();
@@ -197,8 +210,7 @@ export function validateReportTextNLP(text: string): TextModerationResult {
   }
 
   // 2. Ambiguity & Spam Check
-  // Check for very short input or character repetition (e.g. "aaaa", "asdfasdf", "...")
-  const isTooShort = trimmed.length < 12;
+  const isTooShort = trimmed.length < 10;
   const isKeyboardSmash = /(.)\1{4,}/.test(trimmed); // 5 or more identical consecutive characters
   const isMeaninglessPattern = /^([a-z0-9])\1+$/i.test(trimmed.replace(/\s/g, ''));
 
@@ -211,8 +223,12 @@ export function validateReportTextNLP(text: string): TextModerationResult {
   const hasHydrologicalContext = matchedKeywords.length > 0;
   const wordCount = words.length;
 
-  // If text is extremely brief without hydrological context, or keyboard smash
-  const isAmbiguousOrSpam = isTooShort || isKeyboardSmash || isMeaninglessPattern || (wordCount < 4 && !hasHydrologicalContext);
+  // Ambiguous, extremely vague or spam-like
+  const isAmbiguousOrSpam =
+    isTooShort ||
+    isKeyboardSmash ||
+    isMeaninglessPattern ||
+    (wordCount < 4 && !hasHydrologicalContext);
 
   if (isAmbiguousOrSpam) {
     return {
@@ -221,7 +237,7 @@ export function validateReportTextNLP(text: string): TextModerationResult {
       isAmbiguousOrSpam: true,
       requiresSpecialReview: true,
       feedbackMessage:
-        'La descripción es ambigua o presenta escaso detalle hidrológico. El reporte ha sido registrado con estado "Requiere revisión especial" y remitido al correo oficial de administración (overflowsoficial01@gmail.com) para análisis previo.'
+        'La redacción es ambigua o presenta escaso detalle. El reporte se remitirá automáticamente a revisión administrativa (overflowsoficial01@gmail.com) para verificación manual.'
     };
   }
 
@@ -234,22 +250,240 @@ export function validateReportTextNLP(text: string): TextModerationResult {
 }
 
 /**
- * Validates that an image depicts an outdoor hydrological environment
- * and DOES NOT contain a human face / selfie.
+ * Extracts a frame from a video File/Blob and returns an HTMLCanvasElement
+ */
+async function extractVideoFrame(videoFile: File | Blob): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    const objectUrl = URL.createObjectURL(videoFile);
+    video.src = objectUrl;
+
+    video.onloadeddata = () => {
+      // Seek to 0.5s to get a valid frame
+      video.currentTime = Math.min(0.5, (video.duration || 1) / 2);
+    };
+
+    video.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 160;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas);
+    };
+
+    video.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+
+    // Timeout safety
+    setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement('canvas');
+      resolve(canvas);
+    }, 4000);
+  });
+}
+
+/**
+ * Analyzes an image canvas for human faces, text documents/screenshots,
+ * personal objects, and valid hydrological environments (creek, river, slope, rocks, bridge).
+ */
+function analyzeCanvasPixels(
+  canvas: HTMLCanvasElement,
+  hasFaceDetectedByAPI: boolean
+): ImageValidationResult {
+  if (hasFaceDetectedByAPI) {
+    return {
+      isValid: false,
+      isFaceDetected: true,
+      isHydrologicalEnvironment: false,
+      errorMessage: EXACT_AI_IMAGE_REJECTION_MSG
+    };
+  }
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx || canvas.width === 0 || canvas.height === 0) {
+    return {
+      isValid: true,
+      isFaceDetected: false,
+      isHydrologicalEnvironment: true
+    };
+  }
+
+  const { width, height } = canvas;
+  const imgData = ctx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+
+  let totalPixels = 0;
+  let skinLikePixels = 0;
+  let centralSkinPixels = 0;
+  let waterTealBluePixels = 0;
+  let natureGreenPixels = 0;
+  let earthBrownMudPixels = 0;
+  let stoneGrayPixels = 0;
+  let whiteBlankPixels = 0;
+  let darkDeepWaterPixels = 0;
+
+  const centralXMin = Math.floor(width * 0.22);
+  const centralXMax = Math.floor(width * 0.78);
+  const centralYMin = Math.floor(height * 0.18);
+  const centralYMax = Math.floor(height * 0.82);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      totalPixels++;
+
+      // Pure/Near-white check (documents, text screenshots, blank walls)
+      if (r > 240 && g > 240 && b > 240) {
+        whiteBlankPixels++;
+      }
+
+      // Skin Chromaticity Check (Human Face / Selfie rejection)
+      const isSkin =
+        r > 95 &&
+        g > 40 &&
+        b > 20 &&
+        r - g > 15 &&
+        r > b &&
+        r - b > 15 &&
+        Math.max(r, g, b) - Math.min(r, g, b) > 15;
+
+      if (isSkin) {
+        skinLikePixels++;
+        if (x >= centralXMin && x <= centralXMax && y >= centralYMin && y <= centralYMax) {
+          centralSkinPixels++;
+        }
+      }
+
+      // Environmental Category 1: Water / Streams / Currents (blues, teals, foam, river tones)
+      const isWater =
+        (b > r && b > g * 0.92 && b > 55) ||
+        (g > r * 1.05 && b > r * 1.05 && Math.abs(g - b) < 45) ||
+        (r > 65 && r < 145 && g > 75 && g < 155 && b > 85 && b < 170);
+
+      if (isWater) waterTealBluePixels++;
+
+      // Environmental Category 2: Nature / Riverbank Flora / Slopes (vegetation, trees)
+      const isGreenery = g > r * 1.12 && g > b * 1.12 && g > 40;
+      if (isGreenery) natureGreenPixels++;
+
+      // Environmental Category 3: Earth, Mud, Ravine Soil, Sand (browns, ochres)
+      const isEarth =
+        r > 55 &&
+        r < 185 &&
+        g > 35 &&
+        g < 145 &&
+        b < g &&
+        r > g &&
+        r - b > 20;
+
+      if (isEarth) earthBrownMudPixels++;
+
+      // Environmental Category 4: River stones, masonry, bridge abutments, concrete canal
+      const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
+      const isStoneGray = maxDiff < 20 && r > 35 && r < 215;
+      if (isStoneGray) stoneGrayPixels++;
+
+      // Environmental Category 5: Deep water / ravine shadow
+      if (r < 45 && g < 55 && b < 65) {
+        darkDeepWaterPixels++;
+      }
+    }
+  }
+
+  const skinRatio = skinLikePixels / totalPixels;
+  const centralPixelsCount = (centralXMax - centralXMin) * (centralYMax - centralYMin);
+  const centralSkinRatio = centralSkinPixels / Math.max(1, centralPixelsCount);
+
+  // If face / selfie detected
+  if (centralSkinRatio > 0.28 || skinRatio > 0.35) {
+    return {
+      isValid: false,
+      isFaceDetected: true,
+      isHydrologicalEnvironment: false,
+      errorMessage: EXACT_AI_IMAGE_REJECTION_MSG
+    };
+  }
+
+  // Environmental elements ratio
+  const environmentalPixels =
+    waterTealBluePixels +
+    natureGreenPixels +
+    earthBrownMudPixels +
+    stoneGrayPixels +
+    darkDeepWaterPixels;
+
+  const environmentalRatio = environmentalPixels / totalPixels;
+  const whiteBlankRatio = whiteBlankPixels / totalPixels;
+
+  // If image is a screenshot, document, text page, indoor object, or lacks hydrological cues
+  if (whiteBlankRatio > 0.65 || environmentalRatio < 0.22) {
+    return {
+      isValid: false,
+      isFaceDetected: false,
+      isHydrologicalEnvironment: false,
+      errorMessage: EXACT_AI_IMAGE_REJECTION_MSG
+    };
+  }
+
+  return {
+    isValid: true,
+    isFaceDetected: false,
+    isHydrologicalEnvironment: true,
+    confidence: Math.min(0.98, environmentalRatio + 0.3)
+  };
+}
+
+/**
+ * Validates that an image or video depicts an outdoor hydrological environment
+ * and DOES NOT contain a human face / selfie, personal object, written text, etc.
+ * Shows the exact prompt message upon mismatch:
+ * "Imagen no coincide: El archivo adjunto contiene rostros, objetos o elementos ajenos al entorno hidrológico"
  */
 export async function validateReportEnvironmentImage(
-  imageSource: File | Blob | string
+  fileOrUrl: File | Blob | string
 ): Promise<ImageValidationResult> {
+  // If it's a video file, extract frame and validate
+  if (
+    fileOrUrl instanceof File &&
+    (fileOrUrl.type.startsWith('video') || fileOrUrl.name.endsWith('.mp4') || fileOrUrl.name.endsWith('.mov'))
+  ) {
+    try {
+      const videoCanvas = await extractVideoFrame(fileOrUrl);
+      return analyzeCanvasPixels(videoCanvas, false);
+    } catch (e) {
+      console.warn('Video frame extraction failed, falling back to permissive:', e);
+      return {
+        isValid: true,
+        isFaceDetected: false,
+        isHydrologicalEnvironment: true
+      };
+    }
+  }
+
+  // Standard Image Validation
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
 
     let objectUrlToRevoke: string | null = null;
-    if (typeof imageSource !== 'string') {
-      objectUrlToRevoke = URL.createObjectURL(imageSource);
+    if (typeof fileOrUrl !== 'string') {
+      objectUrlToRevoke = URL.createObjectURL(fileOrUrl);
       img.src = objectUrlToRevoke;
     } else {
-      img.src = imageSource;
+      img.src = fileOrUrl;
     }
 
     img.onerror = () => {
@@ -258,7 +492,7 @@ export async function validateReportEnvironmentImage(
         isValid: false,
         isFaceDetected: false,
         isHydrologicalEnvironment: false,
-        errorMessage: 'No se pudo procesar la imagen seleccionada. Por favor verifica el formato (JPG, PNG).'
+        errorMessage: EXACT_AI_IMAGE_REJECTION_MSG
       });
     };
 
@@ -266,177 +500,44 @@ export async function validateReportEnvironmentImage(
       try {
         if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
 
-        // 1. Face Detection: Check if Native FaceDetector is available
+        // Native FaceDetector API check if available
+        let hasNativeFace = false;
         if (typeof window !== 'undefined' && 'FaceDetector' in window) {
           try {
-            // @ts-expect-error - Native FaceDetector
+            // @ts-expect-error - Native FaceDetector API
             const detector = new window.FaceDetector({ maxDetectedFaces: 2, fastMode: false });
             const faces = await detector.detect(img);
             if (faces && faces.length > 0) {
-              resolve({
-                isValid: false,
-                isFaceDetected: true,
-                isHydrologicalEnvironment: false,
-                errorMessage:
-                  'La fotografía contiene un rostro o selfie humano. Los reportes comunitarios deben registrar exclusivamente el entorno hidrológico: cauce, quebrada, empalizadas, laderas o infraestructura afectada.'
-              });
-              return;
+              hasNativeFace = true;
             }
           } catch (e) {
             console.debug('Native FaceDetector fallback to canvas analysis', e);
           }
         }
 
-        // 2. Canvas-based Multi-spectrum Analysis
-        const canvas = document.createElement('canvas');
-        const targetWidth = 160;
-        const targetHeight = 160;
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        if (!ctx) {
-          // If 2d context unavailable, accept gracefully
-          resolve({
-            isValid: true,
-            isFaceDetected: false,
-            isHydrologicalEnvironment: true
-          });
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-        const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
-        const data = imgData.data;
-
-        let totalPixels = 0;
-        let skinLikePixels = 0;
-        let centralSkinPixels = 0;
-        let waterTealBluePixels = 0;
-        let natureGreenPixels = 0;
-        let earthBrownMudPixels = 0;
-        let stoneGrayPixels = 0;
-        let whiteBlankPixels = 0;
-        let darkDeepWaterPixels = 0;
-
-        const centralXMin = Math.floor(targetWidth * 0.25);
-        const centralXMax = Math.floor(targetWidth * 0.75);
-        const centralYMin = Math.floor(targetHeight * 0.20);
-        const centralYMax = Math.floor(targetHeight * 0.80);
-
-        for (let y = 0; y < targetHeight; y++) {
-          for (let x = 0; x < targetWidth; x++) {
-            const idx = (y * targetWidth + x) * 4;
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            totalPixels++;
-
-            // Detect solid/blank white
-            if (r > 245 && g > 245 && b > 245) {
-              whiteBlankPixels++;
-            }
-
-            // Skin Chromaticity Check (to reject selfies / human face close-ups)
-            const isSkin =
-              r > 95 &&
-              g > 40 &&
-              b > 20 &&
-              r - g > 15 &&
-              r > b &&
-              r - b > 15 &&
-              Math.max(r, g, b) - Math.min(r, g, b) > 15;
-
-            if (isSkin) {
-              skinLikePixels++;
-              if (x >= centralXMin && x <= centralXMax && y >= centralYMin && y <= centralYMax) {
-                centralSkinPixels++;
-              }
-            }
-
-            // Environmental Color 1: Water / Streams / Reflections (blues, teals, river water)
-            const isWater =
-              (b > r && b > g * 0.95 && b > 60) || // cool blues/teals
-              (g > r * 1.05 && b > r * 1.05 && Math.abs(g - b) < 45) || // murky greenish river water
-              (r > 70 && r < 140 && g > 80 && g < 150 && b > 90 && b < 165); // turbid river tone
-
-            if (isWater) waterTealBluePixels++;
-
-            // Environmental Color 2: Nature / Riverbank Flora (greens, foliage)
-            const isGreenery = g > r * 1.15 && g > b * 1.15 && g > 45;
-            if (isGreenery) natureGreenPixels++;
-
-            // Environmental Color 3: Earth, Mud, Riverbed Soil, Sand (browns, ochres)
-            const isEarth =
-              r > 60 &&
-              r < 180 &&
-              g > 40 &&
-              g < 140 &&
-              b < g &&
-              r > g &&
-              r - b > 25;
-            if (isEarth) earthBrownMudPixels++;
-
-            // Environmental Color 4: Stones, Concrete canalization, Rocks, Bridge masonry
-            const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
-            const isStoneGray = maxDiff < 18 && r > 40 && r < 210;
-            if (isStoneGray) stoneGrayPixels++;
-
-            // Environmental Color 5: Deep/dark water or shadows in ravine
-            if (r < 45 && g < 55 && b < 65) {
-              darkDeepWaterPixels++;
-            }
-          }
-        }
-
-        const skinRatio = skinLikePixels / totalPixels;
-        const centralPixelsCount = (centralXMax - centralXMin) * (centralYMax - centralYMin);
-        const centralSkinRatio = centralSkinPixels / centralPixelsCount;
-
-        // If there's high concentration of human skin (selfie, portrait) -> REJECT
-        if (centralSkinRatio > 0.35 || skinRatio > 0.40) {
+        if (hasNativeFace) {
           resolve({
             isValid: false,
             isFaceDetected: true,
             isHydrologicalEnvironment: false,
-            errorMessage:
-              'La imagen contiene un rostro o selfie humano. Los reportes comunitarios deben registrar exclusivamente el entorno hidrológico: cauces, niveles, empalizadas, laderas o infraestructura afectada.'
+            errorMessage: EXACT_AI_IMAGE_REJECTION_MSG
           });
           return;
         }
 
-        // Check hydrological / outdoor environment score
-        const environmentalPixels =
-          waterTealBluePixels +
-          natureGreenPixels +
-          earthBrownMudPixels +
-          stoneGrayPixels +
-          darkDeepWaterPixels;
-
-        const environmentalRatio = environmentalPixels / totalPixels;
-        const whiteBlankRatio = whiteBlankPixels / totalPixels;
-
-        // If image is mostly blank or has zero environmental colors (e.g. screenshot, indoor icon)
-        if (whiteBlankRatio > 0.70 || environmentalRatio < 0.22) {
-          resolve({
-            isValid: false,
-            isFaceDetected: false,
-            isHydrologicalEnvironment: false,
-            errorMessage:
-              'La imagen no parece registrar un entorno hidrológico o cauce. Por favor adjunta una fotografía del río, quebrada, ladera, empalizada o puente.'
-          });
-          return;
+        // Canvas Pixel Analysis
+        const canvas = document.createElement('canvas');
+        canvas.width = 160;
+        canvas.height = 160;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         }
 
-        resolve({
-          isValid: true,
-          isFaceDetected: false,
-          isHydrologicalEnvironment: true,
-          confidence: Math.min(0.98, environmentalRatio + 0.3)
-        });
+        const result = analyzeCanvasPixels(canvas, false);
+        resolve(result);
       } catch (err) {
-        console.error('Error in environmental image validation:', err);
-        // Fail-open for edge cases
+        console.error('Error during image validation:', err);
         resolve({
           isValid: true,
           isFaceDetected: false,

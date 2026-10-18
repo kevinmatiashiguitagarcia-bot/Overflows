@@ -158,7 +158,7 @@ export interface QuebradaMapConfig {
   averageSlope: string;
   flowVelocity: string;
   ambientTemp: string;
-  criticalSector: string;
+  criticalSector?: string;
   currentLevel: number;
   maxThreshold: number;
   marginCm: number;
@@ -206,18 +206,18 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     averageSlope: '28%',
     flowVelocity: '1.8 m/s',
     ambientTemp: '17.8°C',
-    criticalSector: 'Droguería Aguas Frías · Altos del Castillo · Universidad de Medellín',
-    currentLevel: 2.40,
+    criticalSector: 'Vereda Aguas Frías (Sector Droguería) · Altos del Castillo',
+    currentLevel: 0.62,
     maxThreshold: 3.10,
-    marginCm: 70,
-    fillingPercentage: 77,
-    trendText: '+15 cm/h (Alza sostenida)',
-    rainIntensity: '42.8 mm/h',
+    marginCm: 248,
+    fillingPercentage: 26,
+    trendText: 'Estable (Flujo normal)',
+    rainIntensity: '0.4 mm/h',
     riskBadge: {
-      label: 'ALERTA AMARILLA / PRECAUCIÓN',
-      color: 'text-amber-900',
-      bg: 'bg-amber-100',
-      border: 'border-amber-300'
+      label: 'ESTADO SEGURO · CAUDAL NORMAL',
+      color: 'text-emerald-900 dark:text-emerald-300',
+      bg: 'bg-emerald-100 dark:bg-emerald-950/60',
+      border: 'border-emerald-300 dark:border-emerald-800'
     },
     // Exact hydrographic course based on Google Maps / user screenshots:
     // Starts high west in Alto de los Santeros, curves down into Vereda Aguas Frías,
@@ -585,17 +585,17 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     flowVelocity: '2.4 m/s',
     ambientTemp: '15.9°C',
     criticalSector: 'Sector Ladrilleras · Box-Culvert Vía El Morro',
-    currentLevel: 2.15,
+    currentLevel: 0.58,
     maxThreshold: 2.80,
-    marginCm: 65,
-    fillingPercentage: 72,
-    trendText: '+22 cm/h (Alza rápida torrencial)',
-    rainIntensity: '54.2 mm/h',
+    marginCm: 222,
+    fillingPercentage: 24,
+    trendText: 'Estable (Flujo normal)',
+    rainIntensity: '0.0 mm/h',
     riskBadge: {
-      label: 'ALERTA NARANJA / RIESGO DE SEDIMENTOS',
-      color: 'text-orange-950',
-      bg: 'bg-orange-100',
-      border: 'border-orange-400'
+      label: 'ESTADO SEGURO · CAUDAL NORMAL',
+      color: 'text-emerald-900 dark:text-emerald-300',
+      bg: 'bg-emerald-100 dark:bg-emerald-950/60',
+      border: 'border-emerald-300 dark:border-emerald-800'
     },
     // Distinct path for Buenavista: steep jagged zigzag chute descending from north-west cliffs (160, 60), through quarries (320, 190), Ladrillera San Judas (500, 310), to Box-Culvert (720, 480)
     riverPathD: 'M 160 60 L 260 140 L 350 200 L 460 270 L 580 370 L 730 470',
@@ -819,17 +819,17 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     flowVelocity: '1.1 m/s',
     ambientTemp: '19.1°C',
     criticalSector: 'Vereda San José del Manzanillo · Sector Las Camelias',
-    currentLevel: 1.35,
+    currentLevel: 0.55,
     maxThreshold: 2.60,
-    marginCm: 125,
-    fillingPercentage: 52,
-    trendText: 'Estable (-2 cm/h)',
-    rainIntensity: '18.2 mm/h',
+    marginCm: 205,
+    fillingPercentage: 25,
+    trendText: 'Estable (Flujo normal)',
+    rainIntensity: '0.2 mm/h',
     riskBadge: {
-      label: 'NIVEL VERDE / CAUCE NORMAL',
-      color: 'text-emerald-900',
-      bg: 'bg-emerald-100',
-      border: 'border-emerald-300'
+      label: 'ESTADO SEGURO · CAUDAL NORMAL',
+      color: 'text-emerald-900 dark:text-emerald-300',
+      bg: 'bg-emerald-100 dark:bg-emerald-950/60',
+      border: 'border-emerald-300 dark:border-emerald-800'
     },
     riverPathD: 'M 90 120 Q 220 190 350 260 T 520 370 T 710 460 T 870 510',
     floodAuraD: 'M 90 120 Q 220 190 350 260 T 520 370 T 710 460 T 870 510',
@@ -1064,17 +1064,17 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     flowVelocity: '1.6 m/s',
     ambientTemp: '18.2°C',
     criticalSector: 'Sector El Corazón Alto · Cancha El Salado',
-    currentLevel: 1.95,
-    maxThreshold: 2.70,
-    marginCm: 75,
-    fillingPercentage: 72,
-    trendText: '+10 cm/h (Alerta temprana)',
-    rainIntensity: '38.5 mm/h',
+    currentLevel: 0.48,
+    maxThreshold: 2.40,
+    marginCm: 192,
+    fillingPercentage: 23,
+    trendText: 'Estable (Flujo normal)',
+    rainIntensity: '0.0 mm/h',
     riskBadge: {
-      label: 'ALERTA AMARILLA / PRECAUCIÓN',
-      color: 'text-amber-900',
-      bg: 'bg-amber-100',
-      border: 'border-amber-300'
+      label: 'ESTADO SEGURO · CAUDAL NORMAL',
+      color: 'text-emerald-900 dark:text-emerald-300',
+      bg: 'bg-emerald-100 dark:bg-emerald-950/60',
+      border: 'border-emerald-300 dark:border-emerald-800'
     },
     riverPathD: 'M 90 90 Q 230 140 370 200 T 560 280 T 730 380 T 870 440',
     floodAuraD: 'M 90 90 Q 230 140 370 200 T 560 280 T 730 380 T 870 440',
@@ -1101,11 +1101,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         elevation: 1980,
         x: 370,
         y: 200,
-        status: 'advertencia',
-        level: 1.95,
-        maxLevel: 2.70,
-        battery: 92,
-        trend: '+10 cm/h'
+        status: 'normal',
+        level: 0.48,
+        maxLevel: 2.40,
+        battery: 98,
+        trend: 'Estable'
       }
     ],
     evacuationPoint: {
@@ -1119,8 +1119,8 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     specificInstructions: [
       {
         step: 1,
-        title: 'Precaución en tramo de interfase El Corazón - San Javier',
-        desc: 'Nivel en alza sostenida (+10 cm/h). Monitoree el puente de cruce hacia Betania.'
+        title: 'Vigilancia en tramo de interfase El Corazón - San Javier',
+        desc: 'Cauce en cota normal. Monitoree el puente de cruce hacia Betania en caso de lluvias.'
       },
       {
         step: 2,
@@ -1139,20 +1139,20 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
     basinAreaHa: 2730,
     riverLengthKm: 28.5,
     averageSlope: '31%',
-    flowVelocity: '1.6 m/s',
+    flowVelocity: '0.9 m/s',
     ambientTemp: '18.0°C',
     criticalSector: 'Comuna 70 Completa · 9 Veredas Interconectadas',
-    currentLevel: 1.85,
-    maxThreshold: 2.80,
-    marginCm: 95,
-    fillingPercentage: 66,
-    trendText: 'Red monitoreada activamente por SIATA y comunidad',
-    rainIntensity: '34.5 mm/h',
+    currentLevel: 0.65,
+    maxThreshold: 2.70,
+    marginCm: 205,
+    fillingPercentage: 25,
+    trendText: 'Red monitoreada activamente por SIATA en cota segura',
+    rainIntensity: '0.2 mm/h',
     riskBadge: {
-      label: 'MAPA INTEGRAL · RED HIDROGRÁFICA COMUNA 70',
-      color: 'text-indigo-950',
-      bg: 'bg-indigo-100',
-      border: 'border-indigo-400'
+      label: 'ESTADO SEGURO · CAUDAL NORMAL',
+      color: 'text-emerald-900 dark:text-emerald-300',
+      bg: 'bg-emerald-100 dark:bg-emerald-950/60',
+      border: 'border-emerald-300 dark:border-emerald-800'
     },
     // Main spine: Quebrada Altavista
     riverPathD: 'M 90 290 Q 230 300 370 310 T 540 330 T 710 350 T 880 370',
@@ -1191,11 +1191,11 @@ export const QUEBRADAS_MAP_DATA: Record<string, QuebradaMapConfig> = {
         elevation: 1950,
         x: 340,
         y: 145,
-        status: 'advertencia',
-        level: 2.40,
+        status: 'normal',
+        level: 0.62,
         maxLevel: 3.10,
-        battery: 94,
-        trend: '+15 cm/h'
+        battery: 98,
+        trend: 'Estable'
       },
       {
         id: 'sens-308',
