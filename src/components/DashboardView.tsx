@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useId, useMemo } from 'react';
+import React, { useState, useEffect, useId, useMemo, useRef } from 'react';
 import { CUENCAS_LIST } from '../data/cuencasData';
 import { QUEBRADAS_MAP_DATA } from '../data/quebradaMapsData';
 import { CuencaData } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useThemeLanguage } from '../context/ThemeLanguageContext';
+import { useCuenca } from '../context/CuencaContext';
 import {
   Waves,
   MapPin,
@@ -15,76 +16,62 @@ import {
   CloudRain,
   Mountain,
   Compass,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown,
+  Home,
+  Lock,
+  ArrowLeft,
+  User,
+  ShieldAlert,
+  ShieldCheck,
+  CheckCircle2,
+  ExternalLink
 } from 'lucide-react';
 
 interface DashboardProps {
   onNavigateToMap?: (cuencaId?: string) => void;
   onOpenCuencaModal?: (cuenca: CuencaData) => void;
+  onOpenReportModal?: () => void;
+  onNavigateToProfile?: () => void;
 }
 
-export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => {
+export const DashboardView: React.FC<DashboardProps> = ({
+  onNavigateToMap,
+  onOpenCuencaModal,
+  onOpenReportModal,
+  onNavigateToProfile
+}) => {
   const { currentUser } = useAuth();
   const { t, language } = useThemeLanguage();
+  const {
+    selectedCuencaId,
+    setSelectedCuencaId,
+    activeCuenca,
+    assignedCuenca,
+    isExploring,
+    isAdmin,
+    canSubmitReports,
+    resetToAssigned
+  } = useCuenca();
+
   const gradientId = useId();
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const selectorRef = useRef<HTMLDivElement>(null);
 
-  // 1. Resolve user's actual assigned quebrada based on sector (No misleading default)
-  const userAssignedCuencaId = useMemo(() => {
-    if (currentUser?.barrioSector) {
-      const s = currentUser.barrioSector.toLowerCase();
-      if (
-        s.includes('aguas frías') ||
-        s.includes('aguas frias') ||
-        s.includes('morro plan') ||
-        s.includes('picacha') ||
-        s.includes('brisas') ||
-        s.includes('altos del castillo')
-      ) {
-        return 'la-picacha';
+  // Close stream selector dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectorRef.current && !selectorRef.current.contains(e.target as Node)) {
+        setSelectorOpen(false);
       }
-      if (s.includes('esperanza') || s.includes('chispero') || s.includes('cañada')) {
-        return 'la-canada';
-      }
-      if (
-        s.includes('morro') ||
-        s.includes('corazón') ||
-        s.includes('corazon') ||
-        s.includes('buenavista') ||
-        s.includes('san judas') ||
-        s.includes('ladrillera')
-      ) {
-        return 'buenavista';
-      }
-      if (
-        s.includes('manzanillo') ||
-        s.includes('jardín') ||
-        s.includes('jardin') ||
-        s.includes('guayabala') ||
-        s.includes('camelias')
-      ) {
-        return 'la-guayabala';
-      }
-      if (
-        s.includes('buga') ||
-        s.includes('patio bonito') ||
-        s.includes('san pablo') ||
-        s.includes('central') ||
-        s.includes('altavista')
-      ) {
-        return 'altavista';
-      }
-    }
-    // Clean default for Corregimiento Altavista
-    return 'altavista';
-  }, [currentUser?.barrioSector]);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  // Active cuenca and geographic profile record
-  const activeCuenca = useMemo(() => {
-    return (
-      CUENCAS_LIST.find((c) => c.id === userAssignedCuencaId) || CUENCAS_LIST[0]
-    );
-  }, [userAssignedCuencaId]);
+  const userAssignedCuencaId = assignedCuenca.id;
+  const isViewingAssigned = !isExploring;
 
   const mapProfile = useMemo(() => {
     return (
@@ -94,16 +81,16 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
     );
   }, [activeCuenca.id]);
 
-  // Sector display text: real user sector if set, otherwise the cuenca's real geographic sector
-  const sectorDisplayName = currentUser?.barrioSector || activeCuenca.sector;
+  // Sector display text
+  const sectorDisplayName = isViewingAssigned
+    ? currentUser?.barrioSector || activeCuenca.sector
+    : activeCuenca.sector;
 
   // 2. Continuous Real-Time SIATA Synchronization Engine
-  // Periodically simulates genuine SIATA micro-variations so data never freezes or pauses
   const [telemetryTick, setTelemetryTick] = useState(0);
   const [secondsSinceLastReading, setSecondsSinceLastReading] = useState(0);
 
   useEffect(() => {
-    // Reading cycle every 4 seconds
     const interval = setInterval(() => {
       setTelemetryTick((prev) => prev + 1);
       setSecondsSinceLastReading(0);
@@ -113,7 +100,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
   }, []);
 
   useEffect(() => {
-    // Seconds counter since last SIATA telemetry packet
     const timer = setInterval(() => {
       setSecondsSinceLastReading((prev) => (prev < 60 ? prev + 1 : 1));
     }, 1000);
@@ -130,7 +116,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
     liveRainIntensity,
     trendDirection
   } = useMemo(() => {
-    // Subtle realistic oscillation between -0.02 and +0.02 meters
     const wave = Math.sin(telemetryTick * 0.75) * 0.02 + Math.cos(telemetryTick * 0.35) * 0.01;
     const baseLvl = activeCuenca.currentLevel;
     const lvl = Math.max(0.2, Number((baseLvl + wave).toFixed(2)));
@@ -167,7 +152,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
       };
     });
 
-    // The last point is the exact live value
     pts.push({
       label: timeLabels[5],
       level: liveLevel,
@@ -182,16 +166,10 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
   const isWatch = activeCuenca.status === 'alerta_amarilla';
 
   const statusLabel = isAlert
-    ? language === 'en'
-      ? 'Orange Alert'
-      : 'Alerta Naranja'
+    ? t('dashboard.orange_alert')
     : isWatch
-    ? language === 'en'
-      ? 'Yellow Alert'
-      : 'Alerta Amarilla'
-    : language === 'en'
-    ? 'Safe / Normal Flow'
-    : 'Caudal Seguro / Normal';
+    ? t('dashboard.yellow_alert')
+    : t('dashboard.safe_normal_flow');
 
   const statusColorClasses = isAlert
     ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60'
@@ -218,10 +196,8 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
   const getY = (val: number) =>
     paddingTop + chartHeight - ((val - minLevel) / (maxLevel - minLevel)) * chartHeight;
 
-  // Build SVG path points
   const points = historyData.map((d, i) => ({ x: getX(i), y: getY(d.level), ...d }));
 
-  // Smooth line path
   const linePath = points.reduce((acc, p, i) => {
     if (i === 0) return `M ${p.x} ${p.y}`;
     const prev = points[i - 1];
@@ -239,10 +215,146 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
   const thresholdY = getY(activeCuenca.maxThreshold * 0.55);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* TARJETA PRINCIPAL: MI QUEBRADA (CON TODA LA INFORMACIÓN Y TELEMETRÍA DEL CAUCE REUBICADA) */}
+    <div className="max-w-5xl mx-auto space-y-6 pb-12 transition-colors">
+      {/* TARJETA PRINCIPAL: MI QUEBRADA */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/90 dark:border-slate-800 shadow-sm transition-colors">
-        {/* Encabezado: Nombre de la Quebrada, Sector Real y Estado en Tiempo Real SIATA */}
+        
+        {/* Top Control Bar: Stream Selector ("Ver otras quebradas") & Home Status Indicator */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 mb-6 border-b border-slate-100 dark:border-slate-800">
+          
+          {/* Status Badges: Admin vs Assigned vs Exploration */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isAdmin ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800">
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Administrador OVERFLOWS · Control Total</span>
+              </span>
+            ) : isViewingAssigned ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
+                <Home className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{t('dashboard.assigned_stream_badge')}</span>
+              </span>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 text-xs font-bold border border-amber-200 dark:border-amber-800">
+                  <Compass className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>{t('dashboard.exploration_mode_badge')}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={resetToAssigned}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                  title={t('dashboard.return_to_my_stream')}
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  <span>{t('dashboard.return_to_my_stream')}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Unified Selector Button / Dropdown: "Ver otras quebradas" */}
+          <div className="relative" ref={selectorRef}>
+            <button
+              type="button"
+              onClick={() => setSelectorOpen(!selectorOpen)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-extrabold transition-all shadow-2xs cursor-pointer"
+            >
+              <Waves className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>{t('dashboard.explore_other_streams')}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${selectorOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {selectorOpen && (
+              <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
+                <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 mb-1">
+                  {t('dashboard.explore_other_streams')}
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {CUENCAS_LIST.map((cuenca) => {
+                    const isUserHome = cuenca.id === userAssignedCuencaId;
+                    const isSelected = cuenca.id === activeCuenca.id;
+
+                    return (
+                      <button
+                        key={cuenca.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCuencaId(cuenca.id);
+                          setSelectorOpen(false);
+                        }}
+                        className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-900 text-white dark:bg-slate-800'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="pr-2 truncate">
+                          <div className="font-bold flex items-center gap-1.5 truncate">
+                            {isUserHome && (
+                              <Home className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Tu cuenca de residencia" />
+                            )}
+                            <span className="truncate">
+                              {language === 'en' ? `${cuenca.name} Stream` : `Quebrada ${cuenca.name}`}
+                            </span>
+                          </div>
+                          <div className={`text-[10px] truncate ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                            {cuenca.sector}
+                          </div>
+                        </div>
+
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-mono font-bold text-[10px] shrink-0 ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {cuenca.capacityPercentage}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+        </div>
+
+        {/* Exploration Mode Notice Banner for Citizens */}
+        {isExploring && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-black text-amber-950 dark:text-amber-200">
+                  {t('reports.exploration_mode_title')}: {language === 'en' ? `${activeCuenca.name} Stream` : `Quebrada ${activeCuenca.name}`}
+                </p>
+                <p className="text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                  {t('reports.exploration_mode_notice')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={resetToAssigned}
+                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
+              >
+                {t('dashboard.return_to_my_stream')}
+              </button>
+              {onNavigateToProfile && (
+                <button
+                  type="button"
+                  onClick={onNavigateToProfile}
+                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white border border-amber-300 dark:border-amber-800 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  {t('reports.btn_go_to_profile')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Encabezado: Nombre de la Quebrada, Sector y Estado en Tiempo Real SIATA */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-4">
             <div className="w-13 h-13 rounded-2xl bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -252,19 +364,19 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  {t('nav.dashboard') || 'Mi Quebrada'}
+                  {t('dashboard.title')}
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800/80">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  <span>En vivo · SIATA Medellín</span>
+                  <span>{t('dashboard.live_siata_badge')}</span>
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight mt-0.5">
-                Quebrada {activeCuenca.name}
+                {language === 'en' ? `${activeCuenca.name} Stream` : `Quebrada ${activeCuenca.name}`}
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                <span>Sector: {sectorDisplayName}</span>
+                <span>{t('dashboard.sector_label')} {sectorDisplayName}</span>
               </p>
             </div>
           </div>
@@ -280,23 +392,23 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
             <div className="text-[11px] font-mono text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
               <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
               <span>
-                Actualizado hace {secondsSinceLastReading}s · {activeCuenca.siataStationId}
+                {t('dashboard.updated_ago')} {secondsSinceLastReading}s · {activeCuenca.siataStationId}
               </span>
             </div>
           </div>
         </div>
 
-        {/* 1. MÉTICAS COMPLETAS DE NIVEL Y CAUCE (REUBICADAS DESDE EL MAPA DE RIESGO) */}
+        {/* 1. MÉTRICAS COMPLETAS DE NIVEL Y CAUCE */}
         <div className="pt-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Gauge className="w-5 h-5 text-slate-700 dark:text-slate-300" />
               <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                Telemetría en Tiempo Real del Cauce
+                {t('dashboard.telemetry_title')}
               </h2>
             </div>
             <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-              Sensor: {activeCuenca.siataStationName}
+              {t('dashboard.sensor_label')} {activeCuenca.siataStationName}
             </span>
           </div>
 
@@ -304,7 +416,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
             {/* Métrica 1: Nivel Actual del Cauce */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                <span>Nivel del Cauce</span>
+                <span>{t('dashboard.channel_level')}</span>
                 <Activity className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               </div>
               <div className="mt-2 flex items-baseline gap-1.5">
@@ -314,7 +426,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                 <span className="text-sm font-bold text-slate-500 dark:text-slate-400">m</span>
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-medium flex items-center justify-between">
-                <span>Umbral de alerta:</span>
+                <span>{t('dashboard.alert_threshold')}</span>
                 <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
                   {activeCuenca.maxThreshold.toFixed(2)} m
                 </span>
@@ -324,7 +436,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
             {/* Métrica 2: Capacidad Utilizada */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                <span>Capacidad del Cauce</span>
+                <span>{t('dashboard.channel_capacity')}</span>
                 <Gauge className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="mt-2 flex items-baseline gap-1">
@@ -332,7 +444,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                   {liveCapacity}%
                 </span>
               </div>
-              {/* Barra de progreso de capacidad */}
               <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-2 overflow-hidden p-0.5">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
@@ -350,24 +461,26 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
             {/* Métrica 3: Margen Libre de Seguridad */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                <span>Margen de Seguridad</span>
+                <span>{t('dashboard.safety_margin')}</span>
                 <TrendingDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="mt-2 flex items-baseline gap-1.5">
                 <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
                   {liveMarginCm}
                 </span>
-                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">cm libres</span>
+                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                  {t('dashboard.free_cm')}
+                </span>
               </div>
               <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 font-bold flex items-center gap-1">
-                <span>✓ Cota hidráulica segura</span>
+                <span>{t('dashboard.safe_hydraulic_level')}</span>
               </div>
             </div>
 
-            {/* Métrica 4: Caudal y Lluvia en Cuenca Alta */}
+            {/* Métrica 4: Caudal y Lluvia */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                <span>Caudal / Precipitación</span>
+                <span>{t('dashboard.flow_rain')}</span>
                 <CloudRain className="w-4 h-4 text-blue-500 dark:text-blue-400" />
               </div>
               <div className="mt-2 flex items-baseline gap-1.5">
@@ -377,7 +490,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">m³/s</span>
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 font-medium flex items-center justify-between">
-                <span>Lluvia cuenca alta:</span>
+                <span>{t('dashboard.upper_basin_rain')}</span>
                 <span className="font-mono font-bold text-slate-900 dark:text-slate-200">
                   {liveRainIntensity} mm/h
                 </span>
@@ -386,20 +499,19 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
           </div>
         </div>
 
-        {/* 2. GRÁFICA EN TIEMPO REAL DEL COMPORTAMIENTO DEL FLUJO (SIATA) */}
+        {/* 2. GRÁFICA EN TIEMPO REAL DEL COMPORTAMIENTO DEL FLUJO (100% i18n) */}
         <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div>
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>Comportamiento del Flujo en Tiempo Real</span>
+                <span>{t('dashboard.flow_behavior_title')}</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sincronización continua de la cota hidrológica durante la última hora
+                {t('dashboard.flow_sync_desc')}
               </p>
             </div>
 
-            {/* Tooltip dinámico o indicador de tendencia */}
             <div className="text-left sm:text-right">
               {activePointIndex !== null ? (
                 <div className="text-xs font-mono">
@@ -408,14 +520,14 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                     {historyData[activePointIndex].level.toFixed(2)} m
                   </span>
                   <span className="text-slate-400 ml-1.5 font-sans">
-                    ({historyData[activePointIndex].percentage}% capacidad)
+                    ({historyData[activePointIndex].percentage}%)
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>
-                    Flujo Continuo · {trendDirection === 'estable_sube' ? 'Laminar +1 cm' : 'Laminar -1 cm'}
+                    {t('dashboard.continuous_flow_laminar')} · {trendDirection === 'estable_sube' ? '+1 cm' : '-1 cm'}
                   </span>
                 </div>
               )}
@@ -436,7 +548,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                 </linearGradient>
               </defs>
 
-              {/* Guía horizontal de umbral preventivo */}
               <line
                 x1={paddingX}
                 y1={thresholdY}
@@ -453,13 +564,11 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                 textAnchor="end"
                 className="fill-slate-400 text-[10px] font-mono"
               >
-                Cota de Referencia Preventiva ({activeCuenca.maxThreshold.toFixed(2)}m umbral)
+                {t('dashboard.preventive_threshold')} ({activeCuenca.maxThreshold.toFixed(2)}m {t('dashboard.threshold_tag')})
               </text>
 
-              {/* Área del caudal con degradado */}
               <path d={areaPath} fill={`url(#${gradientId})`} />
 
-              {/* Línea principal suave de caudal */}
               <path
                 d={linePath}
                 fill="none"
@@ -469,7 +578,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                 strokeLinejoin="round"
               />
 
-              {/* Puntos y etiquetas de tiempo */}
               {points.map((p, idx) => (
                 <g
                   key={idx}
@@ -477,10 +585,8 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                   onMouseEnter={() => setActivePointIndex(idx)}
                   onMouseLeave={() => setActivePointIndex(null)}
                 >
-                  {/* Zona de toque ampliada */}
                   <circle cx={p.x} cy={p.y} r={14} fill="transparent" />
 
-                  {/* Punto visual */}
                   <circle
                     cx={p.x}
                     cy={p.y}
@@ -494,7 +600,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                     }`}
                   />
 
-                  {/* Valor en metros sobre el punto */}
                   <text
                     x={p.x}
                     y={p.y - 10}
@@ -508,7 +613,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                     {p.level.toFixed(2)}m
                   </text>
 
-                  {/* Etiqueta de tiempo en eje horizontal */}
                   <text
                     x={p.x}
                     y={svgHeight - 10}
@@ -523,13 +627,13 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
           </div>
         </div>
 
-        {/* 3. INFORMACIÓN DEL CAUCE Y PERFIL MORFOMÉTRICO (MOVIDO DESDE ABAJO DEL MAPA) */}
+        {/* 3. MORFOMETRÍA Y CARACTERÍSTICAS DEL CAUCE (100% i18n) */}
         <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Mountain className="w-5 h-5 text-slate-700 dark:text-slate-300" />
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                Morfometría y Características del Cauce
+                {t('dashboard.morphometry_title')}
               </h3>
             </div>
             {onNavigateToMap && (
@@ -539,7 +643,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
                 className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Compass className="w-3.5 h-3.5" />
-                <span>Ver en Mapa de Riesgo</span>
+                <span>{t('dashboard.view_on_risk_map')}</span>
               </button>
             )}
           </div>
@@ -547,7 +651,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Rango de Cota
+                {t('dashboard.elevation_range')}
               </div>
               <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
                 {mapProfile.elevationRange}
@@ -556,7 +660,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
 
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Longitud del Cauce
+                {t('dashboard.channel_length')}
               </div>
               <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
                 {mapProfile.riverLengthKm} km
@@ -565,7 +669,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
 
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Pendiente Media
+                {t('dashboard.average_slope')}
               </div>
               <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
                 {mapProfile.averageSlope}
@@ -574,7 +678,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
 
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Área de Cuenca
+                {t('dashboard.basin_area')}
               </div>
               <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-1 font-mono">
                 {mapProfile.basinAreaHa} Ha
@@ -587,17 +691,82 @@ export const DashboardView: React.FC<DashboardProps> = ({ onNavigateToMap }) => 
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span className="font-bold text-amber-950 dark:text-amber-200">
-                Tramo vulnerable de vigilancia:
+                {t('dashboard.critical_watch_segment')}
               </span>
               <span className="text-amber-900 dark:text-amber-300 font-medium">
                 {mapProfile.criticalSector}
               </span>
             </div>
             <span className="text-[11px] font-mono text-amber-800 dark:text-amber-400 font-bold self-start sm:self-auto">
-              Velocidad media: {mapProfile.flowVelocity}
+              {t('dashboard.average_velocity')} {mapProfile.flowVelocity}
             </span>
           </div>
         </div>
+
+        {/* 4. SECCIÓN DE REPORTE Y PERMISOS COMUNITARIOS DE RESIDENCIA */}
+        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+          <div className="p-4 sm:p-5 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
+            <div className="space-y-1 max-w-xl">
+              <div className="flex items-center gap-2">
+                {isViewingAssigned ? (
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                )}
+                <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                  {isViewingAssigned
+                    ? t('dashboard.report_critical_segment_button')
+                    : t('dashboard.exploration_mode_badge')}
+                </h4>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                {isViewingAssigned
+                  ? t('dashboard.report_enabled_hint')
+                  : language === 'en'
+                  ? `Community Restriction Notice: You can only submit community reports for your official residential area (${assignedCuenca.name} Stream). To report on this basin, update your residential sector in My Profile.`
+                  : `Aviso de Restricción Comunitaria: Solo puedes emitir reportes comunitarios para tu zona de residencia oficial (Quebrada ${assignedCuenca.name}). Para reportar sobre esta cuenca, actualiza tu sector de residencia desde Mi Perfil.`}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              {isViewingAssigned ? (
+                <button
+                  type="button"
+                  onClick={onOpenReportModal}
+                  className="px-4 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>{t('dashboard.report_critical_segment_button')}</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled
+                    className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 font-bold text-xs flex items-center gap-2 cursor-not-allowed opacity-75"
+                    title={language === 'en' ? 'Report submission locked outside your official residential area' : 'Emisión de reporte bloqueada fuera de tu zona de residencia'}
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>{t('dashboard.report_critical_segment_button')}</span>
+                  </button>
+
+                  {onNavigateToProfile && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToProfile}
+                      className="px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>{t('nav.profile')}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

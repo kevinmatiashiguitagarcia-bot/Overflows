@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeLanguageProvider, useThemeLanguage } from './context/ThemeLanguageContext';
+import { CuencaProvider, useCuenca } from './context/CuencaContext';
 import { Sidebar } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { BannerAlert } from './components/BannerAlert';
@@ -30,23 +31,13 @@ import {
 function AppContent() {
   const { currentUser } = useAuth();
   const { t } = useThemeLanguage();
+  const { selectedCuencaId, setSelectedCuencaId, assignedCuencaId } = useCuenca();
+
   // Al iniciar sesión, la vista principal es directamente el mapa centrado en su sector
   const [currentView, setCurrentView] = useState<'inicio' | 'mapa' | 'auth' | 'perfil' | 'configuracion' | 'reportes'>('mapa');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Derive initial cuenca based on user's registered sector
-  const deriveUserCuenca = (sector?: string) => {
-    if (!sector) return 'altavista';
-    const s = sector.toLowerCase();
-    if (s.includes('aguas frías') || s.includes('aguas frias') || s.includes('morro plan') || s.includes('picacha')) return 'la-picacha';
-    if (s.includes('esperanza') || s.includes('chispero') || s.includes('cañada')) return 'la-canada';
-    if (s.includes('morro') || s.includes('corazón') || s.includes('buenavista')) return 'buenavista';
-    if (s.includes('manzanillo') || s.includes('jardín') || s.includes('guayabala')) return 'la-guayabala';
-    return 'altavista';
-  };
-
-  const [selectedCuencaId, setSelectedCuencaId] = useState<string>(() => deriveUserCuenca(currentUser?.barrioSector));
   const [selectedCuencaForModal, setSelectedCuencaForModal] = useState<CuencaData | null>(null);
   const [recommendationsModalOpen, setRecommendationsModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -54,13 +45,12 @@ function AppContent() {
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
 
-  // Sync selectedCuencaId when user logs in or switches account
+  // Sync to map view upon fresh user login
   useEffect(() => {
     if (currentUser?.barrioSector) {
-      setSelectedCuencaId(deriveUserCuenca(currentUser.barrioSector));
       setCurrentView('mapa');
     }
-  }, [currentUser?.id, currentUser?.barrioSector]);
+  }, [currentUser?.id]);
 
   const showToast = (message: string) => {
     setNotificationToast(message);
@@ -151,6 +141,8 @@ function AppContent() {
                 setCurrentView('mapa');
               }}
               onOpenCuencaModal={(cuenca) => setSelectedCuencaForModal(cuenca)}
+              onOpenReportModal={() => setReportModalOpen(true)}
+              onNavigateToProfile={() => setCurrentView('perfil')}
             />
           )}
 
@@ -234,7 +226,9 @@ export default function App() {
   return (
     <ThemeLanguageProvider>
       <AuthProvider>
-        <AppContent />
+        <CuencaProvider>
+          <AppContent />
+        </CuencaProvider>
       </AuthProvider>
     </ThemeLanguageProvider>
   );

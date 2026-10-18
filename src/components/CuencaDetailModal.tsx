@@ -1,5 +1,6 @@
 import React from 'react';
 import { CuencaData } from '../types';
+import { useThemeLanguage } from '../context/ThemeLanguageContext';
 import {
   X,
   AlertTriangle,
@@ -25,6 +26,7 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
   onClose,
   onGoToMap
 }) => {
+  const { t, language } = useThemeLanguage();
   if (!cuenca) return null;
 
   return (
@@ -39,7 +41,7 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Ficha Técnica Cuenca
+                  {t('cuenca_modal.title')}
                 </span>
                 <span
                   className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
@@ -48,11 +50,11 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
                       : 'bg-amber-50 text-amber-700 border-amber-200'
                   }`}
                 >
-                  {cuenca.status === 'seguro' ? 'Seguro Verde' : 'Alerta Naranja'}
+                  {cuenca.status === 'seguro' ? t('dashboard.safe_normal_flow') : t('dashboard.orange_alert')}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-950">
-                Quebrada {cuenca.name}
+                {language === 'en' ? `${cuenca.name} Stream` : `Quebrada ${cuenca.name}`}
               </h2>
               <p className="text-xs text-slate-500">{cuenca.sector}</p>
             </div>
@@ -71,28 +73,28 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
           {/* Quick Metrics Banner */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
-              <div className="text-xs text-slate-500 font-medium">Capacidad</div>
+              <div className="text-xs text-slate-500 font-medium">{t('cuenca_modal.capacity')}</div>
               <div className="text-2xl font-black font-mono text-slate-900 mt-0.5">
                 {cuenca.capacityPercentage}%
               </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
-              <div className="text-xs text-slate-500 font-medium">Nivel Actual</div>
+              <div className="text-xs text-slate-500 font-medium">{t('cuenca_modal.current_level')}</div>
               <div className="text-2xl font-black font-mono text-slate-900 mt-0.5">
                 {cuenca.currentLevel} <span className="text-xs font-normal">m</span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
-              <div className="text-xs text-slate-500 font-medium">Caudal</div>
+              <div className="text-xs text-slate-500 font-medium">{t('cuenca_modal.flow_rate')}</div>
               <div className="text-2xl font-black font-mono text-slate-900 mt-0.5">
                 {cuenca.flowRate} <span className="text-xs font-normal">m³/s</span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
-              <div className="text-xs text-slate-500 font-medium">Velocidad</div>
+              <div className="text-xs text-slate-500 font-medium">{t('cuenca_modal.speed')}</div>
               <div className="text-2xl font-black font-mono text-slate-900 mt-0.5">
                 {cuenca.speed} <span className="text-xs font-normal">m/s</span>
               </div>
@@ -102,7 +104,7 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
           {/* Description */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Descripción Hidrográfica
+              {t('cuenca_modal.description')}
             </h3>
             <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-200/70">
               {cuenca.description}
@@ -112,7 +114,7 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
           {/* Critical Points in this basin */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-              Puntos Críticos de Monitoreo
+              {t('cuenca_modal.critical_points')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {cuenca.criticalPoints.map((pt, idx) => (
@@ -132,30 +134,30 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
             <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-800 font-sans">
               <span className="font-bold text-white flex items-center gap-1.5">
                 <Radio className="w-4 h-4 text-emerald-400" />
-                <span>Estación Oficial SIATA</span>
+                <span>{t('cuenca_modal.official_siata')}</span>
               </span>
               <span className="text-emerald-400 font-mono font-bold">{cuenca.siataStationId}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <div>
-                <span className="text-slate-400 font-sans">Nombre estación:</span>{' '}
+                <span className="text-slate-400 font-sans">{t('cuenca_modal.station_name')}</span>{' '}
                 <span className="text-white font-sans font-medium">{cuenca.siataStationName}</span>
               </div>
               <div>
-                <span className="text-slate-400 font-sans">Lluvia SIATA:</span>{' '}
+                <span className="text-slate-400 font-sans">{t('cuenca_modal.rain_siata')}</span>{' '}
                 <span className="text-amber-400 font-bold">{cuenca.rainIntensityMmH} mm/h</span>
               </div>
               <div>
-                <span className="text-slate-400 font-sans">Cota Máxima:</span> {cuenca.maxThreshold} m
+                <span className="text-slate-400 font-sans">{t('cuenca_modal.max_elevation')}</span> {cuenca.maxThreshold} m
               </div>
               <div>
-                <span className="text-slate-400 font-sans">Margen Creciente:</span> {cuenca.margin} cm
+                <span className="text-slate-400 font-sans">{t('cuenca_modal.flood_margin')}</span> {cuenca.margin} cm
               </div>
             </div>
 
             <div className="pt-2 border-t border-slate-800 font-sans text-[11px] text-slate-300">
-              <span className="text-slate-400 font-medium">Estado según reportes ciudadanos:</span>{' '}
+              <span className="text-slate-400 font-medium">{t('cuenca_modal.community_status')}</span>{' '}
               <strong className="text-emerald-300">{cuenca.communityStatus}</strong>
             </div>
           </div>
@@ -165,18 +167,18 @@ export const CuencaDetailModal: React.FC<CuencaDetailModalProps> = ({
         <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex items-center justify-between gap-3">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors"
+            className="px-5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            Cerrar
+            {t('cuenca_modal.close')}
           </button>
           <button
             onClick={() => {
               onClose();
               onGoToMap();
             }}
-            className="px-6 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-sm flex items-center gap-2 shadow-xs transition-colors"
+            className="px-6 py-2.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white font-bold text-sm flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
           >
-            <span>Ver en Mapa Satelital</span>
+            <span>{t('cuenca_modal.view_on_satellite')}</span>
             <MapPin className="w-4 h-4" />
           </button>
         </div>

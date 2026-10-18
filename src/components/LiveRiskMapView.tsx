@@ -15,6 +15,7 @@ import {
   MapPin,
   Send,
   ShieldAlert,
+  ShieldCheck,
   CheckCircle2,
   Activity,
   Compass,
@@ -25,9 +26,17 @@ import {
   X,
   ExternalLink,
   Navigation,
-  Crosshair
+  Crosshair,
+  Waves,
+  ChevronDown,
+  Home,
+  Lock,
+  ArrowLeft,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useCuenca } from '../context/CuencaContext';
+import { useThemeLanguage } from '../context/ThemeLanguageContext';
 
 export function getUserSectorCoordinates(sectorName?: string): { cuencaId: string; x: number; y: number; label: string } {
   if (!sectorName) return { cuencaId: 'altavista', x: 450, y: 310, label: 'Sector General Altavista' };
@@ -65,32 +74,52 @@ export function getUserSectorCoordinates(sectorName?: string): { cuencaId: strin
 interface LiveRiskMapViewProps {
   initialCuencaId?: string;
   onOpenReportModal?: () => void;
+  onNavigateToProfile?: () => void;
 }
 
 export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
   initialCuencaId,
-  onOpenReportModal
+  onOpenReportModal,
+  onNavigateToProfile
 }) => {
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'administrador';
+  const { t, language } = useThemeLanguage();
+  const {
+    selectedCuencaId,
+    setSelectedCuencaId,
+    activeCuenca,
+    assignedCuenca,
+    isExploring,
+    isAdmin,
+    canSubmitReports,
+    resetToAssigned
+  } = useCuenca();
+
+  const [streamSelectorOpen, setStreamSelectorOpen] = useState(false);
+  const streamSelectorRef = React.useRef<HTMLDivElement>(null);
+
+  // Close stream selector dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (streamSelectorRef.current && !streamSelectorRef.current.contains(e.target as Node)) {
+        setStreamSelectorOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const userSectorInfo = getUserSectorCoordinates(currentUser?.barrioSector);
 
-  // Available cuencas: Exclude any La Esperanza / Las Cañadas block
-  const filteredCuencas = CUENCAS_LIST.filter(
-    (c) => c.id !== 'la-canada'
-  );
+  // Sync if initialCuencaId changed from parent navigation
+  useEffect(() => {
+    if (initialCuencaId && initialCuencaId !== selectedCuencaId) {
+      setSelectedCuencaId(initialCuencaId);
+    }
+  }, [initialCuencaId]);
 
-  // Determine starting cuenca id, safeguarding against eliminated items
-  const getSafeCuencaId = (id?: string) => {
-    if (!id || id === 'la-canada') return 'altavista';
-    return id;
-  };
-
-  const effectiveDefaultCuencaId = isAdmin
-    ? getSafeCuencaId(initialCuencaId || userSectorInfo.cuencaId)
-    : getSafeCuencaId(userSectorInfo.cuencaId);
-
-  const [selectedCuencaId, setSelectedCuencaId] = useState<string>(effectiveDefaultCuencaId);
+  // All cuencas available in Comuna 70
+  const availableCuencas = CUENCAS_LIST;
 
   // Streamlined active layers: Strictly Flood and Evacuation (SIATA stations removed)
   const [activeLayers, setActiveLayers] = useState<MapActiveLayers>({
@@ -104,44 +133,25 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
   const [showMapsQuickList, setShowMapsQuickList] = useState<boolean>(false);
   const [mapTargetCoordinate, setMapTargetCoordinate] = useState<MapTargetCoordinate | null>(null);
 
-  useEffect(() => {
-    if (isAdmin) {
-      if (initialCuencaId && initialCuencaId !== 'la-canada') {
-        setSelectedCuencaId(initialCuencaId);
-      } else if (userSectorInfo.cuencaId && userSectorInfo.cuencaId !== 'la-canada') {
-        setSelectedCuencaId(userSectorInfo.cuencaId);
-      } else {
-        setSelectedCuencaId('altavista');
-      }
-    } else {
-      setSelectedCuencaId(getSafeCuencaId(userSectorInfo.cuencaId));
-    }
-    setSelectedEvacPoint(null);
-    setSelectedLandmark(null);
-    setSelectedBranchId(null);
-  }, [initialCuencaId, userSectorInfo.cuencaId, isAdmin]);
-
-  // Actual active cuenca ID (enforcing non-admin restriction and safe fallback)
-  const rawActiveId = isAdmin ? selectedCuencaId : (userSectorInfo.cuencaId || 'altavista');
-  const activeCuencaId = rawActiveId === 'la-canada' ? 'altavista' : rawActiveId;
+  // Active cuenca ID is fully synchronized
+  const activeCuencaId = selectedCuencaId || assignedCuenca.id || 'altavista';
 
   // Retrieve dedicated data for selected quebrada
-  const currentMap = QUEBRADAS_MAP_DATA[activeCuencaId] || QUEBRADAS_MAP_DATA['altavista'] || QUEBRADAS_MAP_DATA['la-picacha'];
-  const cuencaMeta = filteredCuencas.find((c) => c.id === activeCuencaId) || filteredCuencas[0];
+  const currentMap =
+    QUEBRADAS_MAP_DATA[activeCuencaId] ||
+    QUEBRADAS_MAP_DATA['altavista'] ||
+    QUEBRADAS_MAP_DATA['la-picacha'];
+  const cuencaMeta = activeCuenca;
 
   const handleSelectQuebrada = (id: string) => {
-    if (!isAdmin) return;
-    if (id === 'la-canada') return;
     setSelectedCuencaId(id);
     setSelectedEvacPoint(null);
     setSelectedLandmark(null);
     setSelectedBranchId(null);
+    setStreamSelectorOpen(false);
   };
 
-  // Filter out La Esperanza from network list to keep clean
-  const filteredNetwork = COMUNA_70_QUEBRADAS_NETWORK.filter(
-    (item) => item.id !== 'canadas-branch' && !item.name.toLowerCase().includes('esperanza')
-  );
+  const filteredNetwork = COMUNA_70_QUEBRADAS_NETWORK;
 
   return (
     <div className="space-y-6 pb-12 transition-colors">
@@ -154,15 +164,14 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Microcuencas:
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-[10px] font-bold border border-slate-200 dark:border-slate-700">
-                Admin
+              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200 dark:border-indigo-800">
+                Admin · Control Total
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {filteredCuencas.map((cuenca) => {
+              {availableCuencas.map((cuenca) => {
                 const isSelected = cuenca.id === activeCuencaId;
-                const isNetworkView = cuenca.id === 'red-comuna-70';
                 const statusColor =
                   cuenca.status === 'seguro'
                     ? 'bg-emerald-500'
@@ -174,14 +183,10 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                   <button
                     key={cuenca.id}
                     onClick={() => handleSelectQuebrada(cuenca.id)}
-                    title={isNetworkView ? 'Ver red integral' : `Desplegar zona de Quebrada ${cuenca.name}`}
+                    title={`Desplegar zona y mapa de Quebrada ${cuenca.name}`}
                     className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
                       isSelected
-                        ? isNetworkView
-                          ? 'bg-indigo-950 dark:bg-indigo-900 text-white shadow-xs ring-2 ring-indigo-400'
-                          : 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs ring-2 ring-slate-900/20 dark:ring-white/20'
-                        : isNetworkView
-                        ? 'bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800'
+                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs ring-2 ring-slate-900/20 dark:ring-white/20'
                         : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
                     }`}
                   >
@@ -190,15 +195,11 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
                         cuenca.status !== 'seguro' ? 'animate-pulse' : ''
                       }`}
                     ></span>
-                    <span>{isNetworkView ? 'Red Completa' : `Quebrada ${cuenca.name}`}</span>
+                    <span>{language === 'en' ? `${cuenca.name} Stream` : `Quebrada ${cuenca.name}`}</span>
                     <span
                       className={`text-[11px] font-mono font-medium px-1.5 py-0.2 rounded ${
                         isSelected
-                          ? isNetworkView
-                            ? 'bg-indigo-900 text-indigo-200'
-                            : 'bg-slate-800 dark:bg-slate-200 text-slate-300 dark:text-slate-800'
-                          : isNetworkView
-                          ? 'bg-indigo-200/80 dark:bg-indigo-900/80 text-indigo-800 dark:text-indigo-200'
+                          ? 'bg-slate-800 dark:bg-slate-200 text-slate-300 dark:text-slate-800'
                           : 'bg-slate-200/90 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                       }`}
                     >
@@ -210,25 +211,112 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             </div>
           </div>
         ) : (
-          /* Resident Assigned Cuenca Display */
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          /* Resident / Explorer Cuenca Navigation Toolbar */
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-linear-to-br from-[#8B0000] to-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
-                <Compass className="w-5 h-5 text-emerald-400" />
+                {isExploring ? (
+                  <Compass className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <Home className="w-5 h-5 text-emerald-400" />
+                )}
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Cuenca Asignada
+                    {isExploring ? t('dashboard.exploration_mode_badge') : 'Cuenca Asignada (Residencia)'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800">
-                    Monitoreo Activo
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      isExploring
+                        ? 'bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                    }`}
+                  >
+                    {isExploring ? 'Modo Consulta' : 'Monitoreo Activo'}
                   </span>
                 </div>
                 <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
-                  Quebrada {cuencaMeta.name} · {userSectorInfo.label}
+                  {language === 'en' ? `${cuencaMeta.name} Stream` : `Quebrada ${cuencaMeta.name}`}
+                  {!isExploring && ` · ${userSectorInfo.label}`}
                 </h3>
               </div>
+            </div>
+
+            {/* Quick Action Buttons for Residents: Selector & Return to Assigned */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* "Ver otras quebradas" dropdown button */}
+              <div className="relative" ref={streamSelectorRef}>
+                <button
+                  type="button"
+                  onClick={() => setStreamSelectorOpen(!streamSelectorOpen)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                >
+                  <Waves className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>{t('dashboard.explore_other_streams')}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${streamSelectorOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {streamSelectorOpen && (
+                  <div className="absolute left-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
+                    <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 mb-1">
+                      {t('dashboard.explore_other_streams')}
+                    </div>
+                    <div className="max-h-60 overflow-y-auto space-y-1">
+                      {availableCuencas.map((c) => {
+                        const isHome = c.id === assignedCuenca.id;
+                        const isSelected = c.id === activeCuencaId;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => handleSelectQuebrada(c.id)}
+                            className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-slate-900 text-white dark:bg-slate-800'
+                                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <div className="pr-2 truncate">
+                              <div className="font-bold flex items-center gap-1.5 truncate">
+                                {isHome && <Home className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                                <span className="truncate">
+                                  {language === 'en' ? `${c.name} Stream` : `Quebrada ${c.name}`}
+                                </span>
+                              </div>
+                              <div className={`text-[10px] truncate ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                                {c.sector}
+                              </div>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-mono font-bold text-[10px] shrink-0 ${
+                                isSelected
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              {c.capacityPercentage}%
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* If exploring, show button to return to home stream */}
+              {isExploring && (
+                <button
+                  type="button"
+                  onClick={resetToAssigned}
+                  className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  title={t('dashboard.return_to_my_stream')}
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>{t('dashboard.return_to_my_stream')}</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -280,8 +368,42 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             </span>
             <span>Puntos Seguros</span>
           </button>
-        </div>
       </div>
+
+      {/* Exploration Mode Notice Banner for Citizens */}
+      {isExploring && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-black text-amber-950 dark:text-amber-200">
+                {t('reports.exploration_mode_title')}: {language === 'en' ? `${activeCuenca.name} Stream` : `Quebrada ${activeCuenca.name}`}
+              </p>
+              <p className="text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                {t('reports.exploration_mode_notice')}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={resetToAssigned}
+              className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
+            >
+              {t('dashboard.return_to_my_stream')}
+            </button>
+            {onNavigateToProfile && (
+              <button
+                type="button"
+                onClick={onNavigateToProfile}
+                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-slate-800 text-slate-800 dark:text-white border border-amber-300 dark:border-amber-800 font-bold text-xs transition-colors cursor-pointer"
+              >
+                {t('reports.btn_go_to_profile')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Main Grid: Fluid GIS Map Canvas + Hydrological Telemetry & Protocol Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -304,6 +426,33 @@ export const LiveRiskMapView: React.FC<LiveRiskMapViewProps> = ({
             </div>
 
             <div className="shrink-0 flex items-center gap-2 flex-wrap">
+              {/* Quick Report Button (Enforced with RBAC) */}
+              {canSubmitReports ? (
+                <button
+                  type="button"
+                  onClick={onOpenReportModal}
+                  className="px-3 py-1.5 rounded-xl bg-[#8B0000] hover:bg-[#720000] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  title="Reportar novedad comunitaria en este cauce"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Reportar</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold flex items-center gap-1.5 border border-slate-700 opacity-60 cursor-not-allowed"
+                  title={
+                    language === 'en'
+                      ? 'Exploration Mode: Report submission restricted to your official residence'
+                      : 'Modo Exploración: Solo puedes emitir reportes en tu quebrada de residencia oficial'
+                  }
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Reportar (Bloqueado)</span>
+                </button>
+              )}
+
               {/* Quick Points Explorer */}
               <button
                 type="button"

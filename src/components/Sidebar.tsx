@@ -58,10 +58,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'reportes' as const,
-      label: t('nav.reports'),
-      sublabel: 'Fotos y Videos Obligatorios',
+      label: isAdmin
+        ? (language === 'en' ? 'OVERFLOWS Moderation' : 'Moderación OVERFLOWS')
+        : t('nav.reports'),
+      sublabel: isAdmin
+        ? (language === 'en' ? 'Pending Citizen Queue' : 'Bandeja de Moderación')
+        : (language === 'en' ? 'Mandatory Photos & Videos' : 'Fotos y Videos Obligatorios'),
       icon: MessageSquareWarning,
-      badge: 'Alerta',
+      badge: isAdmin ? 'Admin' : (language === 'en' ? 'Alert' : 'Alerta'),
       badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30'
     }
   ];

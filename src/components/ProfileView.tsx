@@ -35,7 +35,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenPrivacyPolicy
 }) => {
   const { currentUser, updateUserName, updateUserAvatar } = useAuth();
-  const { language } = useThemeLanguage();
+  const { language, t } = useThemeLanguage();
 
   const [updateContactOpen, setUpdateContactOpen] = useState(false);
   const [changeSectorOpen, setChangeSectorOpen] = useState(false);
@@ -148,14 +148,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         return;
       }
 
-      // 3. Biometric check passed: save avatar to user account
+      // 3. Biometric check passed: save avatar silently to user account without descriptive text/alert
       const updateRes = updateUserAvatar(currentUser.id, dataUrl);
       if (updateRes.success) {
-        setBiometricAlert({
-          type: 'success',
-          message: '✓ Biometría facial verificada: Rostro humano reconocido exitosamente.'
-        });
-        handleUpdateSuccess('Foto de perfil actualizada correctamente.');
+        setBiometricAlert(null);
       } else {
         setBiometricAlert({
           type: 'error',
@@ -338,56 +334,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               Registrado desde el {formattedDate}
             </p>
 
-            {/* Simplified action buttons: "Cambiar foto" and "Eliminar foto" */}
-            <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isScanningBiometrics}
-                className="text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-[#8B0000] dark:hover:text-red-400 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                title="Cambiar foto de perfil"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Cambiar foto</span>
-              </button>
-
-              {currentUser.avatarUrl && (
+            {/* Action button: Only "Eliminar foto" if avatar exists (camera icon on avatar triggers photo upload) */}
+            {currentUser.avatarUrl && (
+              <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={handleDeletePhoto}
                   disabled={isScanningBiometrics}
                   className="text-xs font-bold text-rose-700 dark:text-rose-400 hover:text-rose-800 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                  title="Eliminar foto de perfil y restaurar avatar con iniciales"
+                  title={t('profile.delete_photo', 'Eliminar foto de perfil actual')}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Eliminar foto</span>
+                  <span>{t('profile.delete_photo', 'Eliminar foto')}</span>
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Biometric Validation Feedback Banner */}
-        {biometricAlert && (
-          <div
-            className={`mt-4 p-4 rounded-2xl border text-xs font-bold flex items-start gap-3 animate-in fade-in ${
-              biometricAlert.type === 'error'
-                ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-900'
-                : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-900'
-            }`}
-          >
-            {biometricAlert.type === 'error' ? (
-              <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            ) : (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-            )}
+        {/* Biometric Validation Error Banner (Only displayed on error, silent on success) */}
+        {biometricAlert && biometricAlert.type === 'error' && (
+          <div className="mt-4 p-4 rounded-2xl border text-xs font-bold flex items-start gap-3 animate-in fade-in bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-900">
+            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="leading-relaxed">{biometricAlert.message}</p>
-              {biometricAlert.type === 'error' && (
-                <p className="text-[11px] font-normal text-rose-700 dark:text-rose-300 mt-1">
-                  El sistema biométrico requiere un retrato humano frontal donde el rostro sea claramente visible y no un objeto, paisaje o ilustración.
-                </p>
-              )}
+              <p className="text-[11px] font-normal text-rose-700 dark:text-rose-300 mt-1">
+                El sistema biométrico requiere un retrato humano frontal donde el rostro sea claramente visible y no un objeto, paisaje o ilustración.
+              </p>
             </div>
             <button
               onClick={() => setBiometricAlert(null)}
